@@ -14,8 +14,10 @@ records the separate-addon split; ADR-0004 records the spellbook-driven
 lane set over the Cooldown Manager.
 
 Status: v1 draft, decisions applied. Nothing built. The project folder was
-split out of 4everSwingTimer on 2026-10-06 (docs only); code, remote and
-publishing still wait on the probe session.
+split out of 4everSwingTimer on 2026-10-06 (docs only). The probe session
+ran on 2026-10-06 (build 70235; verdicts in `PROBE_SESSION.md`, applied
+below, gate cleared with the decisions recorded there); remote and
+publishing wait on the first release.
 
 ## Problem Statement
 
@@ -117,8 +119,8 @@ numbers.
 27. As a player, I want global settings (windows, lane height, spacing,
     scale) in the game's Settings panel, so that they sit where every other
     addon's settings live.
-28. As a player, I want the frame anchored and scaled in Blizzard's Edit
-    Mode, so that placement works the same as the rest of my UI.
+28. As a player, I want to place the frame in Blizzard's Edit Mode, so that
+    placement works the same as the rest of my UI.
 29. As a player, I want a test command that seeds fake events on a running
     clock, so that I can verify layout and encoding without a fight.
 30. As a player in a dungeon, I want the same lanes to keep working in
@@ -220,10 +222,16 @@ numbers.
   latest anchor: the next landing, then equal-interval desaturated marks at
   the anchor's speed filling the future window, re-derived at every anchor),
   cast (START plus the live-read or calibrated cast time), cooldown
-  (`UNIT_SPELLCAST_SUCCEEDED` time plus calibrated duration — the cooldown
-  starts on completion, not START; the spell lane's happened mark also sits
-  at SUCCEEDED), GCD (cast time plus power-type default,
-  user-overridable). Predictors are deterministic arithmetic on plain
+  (`UNIT_SPELLCAST_SUCCEEDED` time plus calibrated duration, minus the
+  calibrated **cast offset** — the cooldown starts on completion, not
+  START; the spell lane's happened mark also sits at SUCCEEDED). The cast
+  offset exists because SUCCEEDED arrives a server round trip after the
+  cooldown actually starts (~0.2 s for instants, probe session G1);
+  calibration measures it (cooldown `startTime` minus the SUCCEEDED time)
+  on each out-of-combat read and caches a per-player running value, so
+  the predicted ready mark lands on the real instant. GCD (cast time plus
+  power-type default — 1.5 s, 1.0 s for energy users, both measured
+  in the probe session — user-overridable). Predictors are deterministic arithmetic on plain
   payload values, never tentative; the library stays the sole source of
   swing state.
 - **Cooldown marks are inferred from calibration; the engine-drawn sink is
@@ -243,16 +251,22 @@ numbers.
   overdue (value too short); the combat-end read corrects it, and the
   cast-to-cast gap is never written. No login spellbook cooldown
   scan — a ready spell reads zero.
-- **Cooldown arrival**: when probe 3 finds `isActive` plain in combat, a
-  predicted cooldown mark reaching the now line pins there **overdue**
-  (as a swing does) until `isActive` reads false, and only then becomes
-  the ready mark — a verified ready. If `isActive` is secret, the mark
-  becomes the ready mark on arrival, trusting calibration.
+- **Cooldown arrival** (probe 3: `isActive` is plain in combat, build
+  70235, boss pull included): a predicted cooldown mark reaching the now
+  line pins there **overdue** (as a swing does) until `isActive` reads
+  false, and only then becomes the ready mark — a verified ready.
+  `isActive` is also true while the GCD runs, so a mark arriving inside a
+  GCD releases when the GCD ends — the spell is not pressable before
+  that either. (Had `isActive` been secret, the mark would have become
+  the ready mark on arrival, trusting calibration.)
 - **Linked cooldowns** (shared cooldowns: shaman shocks, hunter traps) are
   learned during calibration — after an out-of-combat cast, every lane
   spell that turned active with the same start and duration is linked and
   the link cached — over a small curated seed covering the first fight.
-  A cast predicts every linked lane.
+  GCD-length reads never link: right after any cast every spell reads
+  active with the cast's start and the GCD duration, and the real
+  cooldown replaces it about 0.2 s later (probe session), so the link
+  test runs on the settled read. A cast predicts every linked lane.
 - **Cooldown resets** (Preparation, Cold Snap): a curated table maps each
   reset spell to the spells it resets; casting it switches those lanes to
   their ready mark (or unusable mark). The curated data — starter set,
@@ -262,8 +276,9 @@ numbers.
   spells; seeds and resets only where known to apply).
 - **Delayed-start cooldowns** (Stealth, Nature's Swiftness, Presence of
   Mind, Cold Blood — the cooldown starts when the effect breaks or is
-  consumed) are detected during calibration (the cooldown reads not yet
-  started while the effect is active) and flagged; their lanes show
+  consumed) are detected during calibration (right after the cast the
+  cooldown reads `isEnabled == false` while the effect is active — Stealth,
+  probe session) and flagged; their lanes show
   happened marks only, never a predicted mark.
 - **Engine-drawn lane constraints** (accepted, from ADR-0001 and the smoke
   tests): display-only, linear scale, the icon is a leaf frame, no
@@ -304,15 +319,16 @@ numbers.
   look, matching the game's gray-while-on-cooldown icon language; blue is
   reserved for Blizzard's not-enough-mana tint) — parked on the now line.
   **Ready** means off cooldown and usable (`C_Spell.IsSpellUsable`:
-  resource and reactive conditions, e.g. Overpower, Execute) when probe 12
-  verifies that read plain in combat; if it reads secret, ready means off
-  cooldown only. Two further now-line marks complete the idle family: the
+  resource and reactive conditions, e.g. Overpower, Execute) — probe 12
+  found both returns plain in combat (build 70235, boss pull included;
+  the resource case verified, reactive conditions not yet exercised).
+  Two further now-line marks complete the idle family: the
   **unusable mark** (off cooldown but not usable — icon tinted with the
   action bar's own values, blue when resource-short and grey otherwise —
-  see `VISUAL.md`; exists only when probe 12 is plain — except the
-  **wrong form or stance** case: a spell whose curated data requires
-  another druid form or warrior stance shows the grey unusable mark from
-  the form read alone (probe 15), whatever probe 12's verdict) and the
+  see `VISUAL.md`; the **wrong form or stance** case: a spell whose
+  curated data requires another druid form or warrior stance shows the
+  grey unusable mark from `GetShapeshiftFormID`, plain in combat for
+  warrior stances — probe 15; druid forms unverified) and the
   **unknown-cooldown mark** (known to be cooling, end
   unknown — uncalibrated spell cast in combat, or in-combat reload: icon
   desaturated, no outline, held until a plain read settles it or the
@@ -406,8 +422,10 @@ numbers.
   mark's icon to the queued spell (`IsCurrentSpell` is probe-verified plain),
   and the swing it lands on carries that icon into the past: an
   on-next-swing ability (Heroic Strike, Cleave) is one happened mark on the
-  main-hand lane, never a cast-lane mark (probe 13: SUCCEEDED fires at the
-  swing).
+  main-hand lane, never a cast-lane mark (probe 13, confirmed on build
+  70235: SUCCEEDED fires at the swing, same timestamp as its
+  `PLAYER_SWING` — and also when that swing is dodged, parried or
+  missed, probe 2).
   Lane identity is the marks themselves: every swing mark renders the
   equipped weapon's icon — happened full color, predicted desaturated,
   parked dim — with no lane-start glyph, no text labels, and no delta
@@ -419,7 +437,10 @@ numbers.
   off-hand weapon, no off-hand lane; no ranged weapon, no ranged lane.
   Happened marks are **outcome-agnostic**: hit, crit, miss, dodge and parry
   of your own swings are combat-log-only and the log is refused for the
-  whole session — nothing left to probe. The happened-mark structure keeps
+  whole session — nothing left to probe. (`UNIT_COMBAT` on the target does
+  report DODGE, PARRY and MISS plainly, but without a source — another
+  attacker's miss reads the same — so it cannot annotate the player's own
+  swings honestly.) The happened-mark structure keeps
   an unrendered outcome slot should an outcome API ever ship; v1 draws
   nothing there, and no early-landing accent persists (the pop and
   streak are transient). Clip marks and delay spans are not outcomes —
@@ -430,14 +451,19 @@ numbers.
   (outcome-agnostic like swing marks). In-flight casts and channels draw a
   predicted mark at the expected end whose saturation follows its source:
   full color when fed by the plain live read (engine fact-grade),
-  desaturated when fed by calibration (drifts under haste) — flipping with
-  the cast-duration probe's verdict. The in-flight spell's icon rides the
+  desaturated when fed by calibration (drifts under haste) — probe 11
+  found the live read plain in combat and in a boss pull, so in-flight
+  completion marks render full color. The in-flight spell's icon rides the
   now line at full color — a **now-line icon**, present tense, a fact in
   progress: the lane's identity is what is happening now, with no static
   lane-start glyph and nothing shown when idle. Stopped, failed and
   interrupted casts leave a red happened mark at the stop instant while
   the predicted mark pops red and vanishes
   (no ghost — the red carries over from the bar addon's interrupt color).
+  Only a cast that started (it had a START, so it was in flight or
+  channeling) can fail this way: a `UNIT_SPELLCAST_FAILED` with no START
+  is a refused press, not a cast, and leaves no mark (pressing Holy Light
+  without mana fired 14 of them in 2.6 s — probe session G2).
   Channels have no interrupt signal (CHANNEL_STOP either way): a channel
   stopping more than ~0.2 s before its expected end gets the red mark; with
   no known expected end it always gets the normal happened mark (no
@@ -448,9 +474,16 @@ numbers.
   channels, mounts and hearthstone, except auto-repeat spells (Auto Shot,
   wand Shoot — the ranged lane already shows them) and on-next-swing
   abilities (the main-hand lane carries them); a "combat only" toggle is
-  post-v1. The cast duration comes from a live read when
-  plain and event-arithmetic calibration (`SUCCEEDED − START` out of
-  combat) when secret — probe-listed (cast duration readability).
+  post-v1. The cast duration comes from the live read
+  (`UnitCastingInfo` / `UnitChannelInfo` end time), plain in combat
+  (probe 11); event-arithmetic calibration (`SUCCEEDED − START` out of
+  combat) stays only as the fallback should a later build turn it secret.
+  Pushback re-reads the end time on each `UNIT_SPELLCAST_DELAYED`
+  (verified within 0.08 s of the actual completion). One cancel can fire
+  `UNIT_SPELLCAST_INTERRUPTED` several times (four observed), so the stop
+  is recorded once per cast. A channel's spell ID can differ from its
+  SUCCEEDED ID (Cannibalize 20577 / 20578), so channel edges key on the
+  channel-start ID.
 - **GCD lane**: renders **window bars**, not point marks — a light-blue span
   per GCD window, from the triggering cast to the GCD's end (power-type
   default, user-overridable). A window bar's elapsed span renders full
@@ -472,21 +505,26 @@ numbers.
   not tracked in v1 — spell cooldowns only.
 - **Settings surface split**: the client's Settings vertical layout supports
   checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (windows, width, lane height, spacing, GCD override, lane-kind toggles,
-  visibility, skin, orientation, lane background alpha, sink countdown —
+  (windows, width, scale, lane height, spacing, GCD override, lane-kind
+  toggles, visibility, skin, orientation, lane background alpha, sink
+  countdown —
   see `VISUAL.md`)
   live in the 12.x Settings category; the lane list (per-spell enable, sink
   opt-in, manual override, drag-reorder) lives in the addon's own settings
   window, opened from the slash command. Nothing dynamic registers in the
   Settings category.
-- **Frame anchoring**: Blizzard Edit Mode — the timeline frame registers as
-  an Edit Mode-anchored frame (placement and scale native, no custom unlock
-  overlay, no lock checkbox), following ForeverCDM's proven pattern on this
-  client. Probe-listed for the beta build. Edit Mode owns position and
-  scale; a **width** slider in the Settings globals sets the frame width,
-  and the time scale follows from it (pixels per second = width ÷ (past
-  window + future window)). If probe 9 fails, the fallback unlock overlay
-  stores position in the player layer.
+- **Frame anchoring**: placed in Blizzard Edit Mode, following ForeverCDM's
+  proven pattern on this client (probe 9 passed, build 70235) — which is
+  **not** a registered Edit Mode system: the frame listens for
+  `EventRegistry` `EditMode.Enter` / `EditMode.Exit`, becomes draggable
+  (with a labelled handle) only while Edit Mode is open, snaps by hand
+  against `EditModeManagerFrame.registeredSystemFrames` when Edit Mode's
+  snap is on, and stores its own position (UIParent-centred) in the
+  player layer. No custom unlock overlay, no lock checkbox, no taint from
+  writing into Blizzard's layout tables. Edit Mode's own scale does not
+  apply to such a frame, so **scale** is a Settings slider. A **width**
+  slider sets the frame width, and the time scale follows from it (pixels
+  per second = width ÷ (past window + future window)).
 - **Visibility**: a Settings dropdown — **In combat** (default), **Always**,
   **Active** (shown while any mark is inside the visible window) — the bar
   addon's visibility pattern. Test mode forces the frame shown; event
@@ -503,7 +541,7 @@ numbers.
   order whole; a spell enabled later at the class layer appends to the
   player's order and is flagged **new** in the settings window; "reset to
   class" deletes the player's order.
-  The calibration cache (values, linked-cooldown links, delayed-start
+  The calibration cache (values, the cast offset, linked-cooldown links, delayed-start
   flags, stale flags) is a separate sub-table so wiping it can never touch
   the lane set.
 - **Secret guard**: every payload value is checked for secrecy at
@@ -582,7 +620,7 @@ numbers.
 - Target debuff ticks and Sunder-stack inference (probe-listed).
 - Buff lanes in v1 (inferred-buff accuracy is weak while aura data is hidden
   mid-combat).
-- Resource (rage/energy) lane — probe-listed.
+- Resource (rage/energy) lane — `UnitPower` reads secret even out of combat (probe 5), so only a sink could draw it; post-v1.
 - A dedicated queued-ability lane — covered instead by the queued
   mark-swap on the main-hand lane (`IsCurrentSpell` is probe-verified plain).
 - Usable item cooldowns (trinkets, potions) — spells only in v1.
@@ -617,8 +655,17 @@ numbers.
   and the cast lane's cast time), the Cooldown Manager probe gates only the
   optional mirror, and the Edit Mode probe gates only the frame-anchoring
   mechanism (fallback: a custom unlock overlay like 4everSwingTimer's).
-- The next deliverable is the probe session script: one numbered in-game
-  checklist through the capture rig covering the open probes (boss-pull
+- Probe session done (2026-10-06, build 70235, `PROBE_SESSION.md`):
+  plain in combat and in a boss pull — player cast IDs, `isActive`
+  (also true during the GCD), `IsSpellUsable`, the live cast time, the
+  warrior stance read; SUCCEEDED fires at the swing for Heroic Strike and
+  on avoided attacks; `UnitPower` secret even out of combat; every Native
+  atlas present; the Cooldown Manager near-empty; Edit Mode placement via
+  ForeverCDM's `EventRegistry` pattern passes (scale moves to Settings);
+  GCD spell 61304 absent. Not run: extra attacks, druid shifts, sink
+  precision by eye, reactive usability, Sunder.
+- The probe session script was the deliverable before code: one numbered
+  in-game checklist through the capture rig covering the open probes (boss-pull
   cast IDs, avoided-attack casts — gating the cast lane and debuff
   counting, not swing outcomes — `isActive`, sink precision, resource
   secrecy, extra attacks, Cooldown Manager coverage, energy-GCD duration,

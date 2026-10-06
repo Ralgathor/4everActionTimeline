@@ -57,7 +57,7 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
 - **predictor** — a rule that converts a readable anchor (a cast event, or
   the library's swing expiry) plus a known duration into predicted marks. Deterministic arithmetic; never tentative,
   unlike the library's candidate.
-- **calibration** — reading a plain value out of combat (cooldown, duration)
+- **calibration** — reading a plain value out of combat (cooldown, duration, cast offset)
   and caching it per spell ID for in-combat inference; driven by the lane set.
   A cached value is **stale** after a talent change, or when combat shows
   it wrong (the spell cast before its predicted ready, or its mark stuck

@@ -14,6 +14,11 @@ Verification legend:
   use, since the branch can lead or lag the client build.
 - **shared** — already verified in play by 4everSwingTimer (see its asset
   library).
+- **probed** — chosen during the probe session.
+
+Probe 14 (2026-10-06, build 70235): every atlas in this file exists in game
+(`C_Texture.GetAtlasInfo`, `PROBE_SESSION.md`). The runtime atlas guard
+stays, since a later build can drop one.
 
 ## Native skin — track and now line
 
@@ -39,7 +44,7 @@ Verification legend:
 | `UI-HUD-CoolDownManager-Bar` / `-Bar-BG` | atlas | source | GCD window bar fill and backing. |
 | `combattimeline-fx-pause` / `-pause-icon` | atlas | source | Overlay on a paused hand's marks. |
 | `combattimeline-fx-queued` | atlas | source | Overlay on the main-hand mark showing a queued ability. |
-| arrow / chevron (TBD) | atlas | probe 14 | Edge-clamp chevron; chosen by in-game atlas search. |
+| `uitools-icon-chevron-right` / `-left` | atlas | probed | Edge-clamp chevron (20×20, white, tinted to the track color). |
 
 ## Both skins — feedback
 

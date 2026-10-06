@@ -165,10 +165,14 @@ in v1 — range is an unprobed read and leans toward press-this-next advice.
   **chevron** on its outer side ("further than this"). The sink icon gets
   no chevron — Lua cannot tell whether it is pinned — so a pinned sink
   icon and a pinned readable mark look different; accepted.
-- Asset: a Native arrow atlas chosen by an in-game atlas search during the
-  probe session (probe 14); fallback in both skins is a small triangle of
-  two rotated `WHITE8X8` strokes in the track color. Size ~⅓ of the icon,
-  just outside the icon's outer edge so it never covers the icon.
+- Asset (probe 14, build 70235): `uitools-icon-chevron-right` / `-left`
+  (20×20, white, so it takes the track color; the left one for flipped
+  orientations, rotated through tex coords for vertical). The other
+  candidates seen (`common-icon-forwardarrow`, `NPE_ArrowRight`) are
+  pre-colored yellow and were passed over. Fallback in both skins is a
+  small triangle of two rotated `WHITE8X8` strokes in the track color.
+  Size ~⅓ of the icon, just outside the icon's outer edge so it never
+  covers the icon.
 
 ### GCD window bar
 
@@ -202,14 +206,19 @@ in v1 — range is an unprobed read and leans toward press-this-next advice.
 
 - The frame never takes the mouse (click-through, no tooltips): the icons
   already identify each mark, the timeline is read at a glance, and a
-  mouse-enabled HUD frame mid-screen would block world clicks. Placement
-  happens in Edit Mode, which handles its own mouse.
+  mouse-enabled HUD frame mid-screen would block world clicks. The one
+  exception is placement: while Edit Mode is open (and out of combat) the
+  frame enables the mouse for dragging, ForeverCDM's pattern (probe 9),
+  and turns it off again when Edit Mode closes.
 
 ### Frame chrome
 
 - None. The lanes and tracks are the frame, as in Blizzard's Encounter
   Timeline; the lane background alpha slider covers players who want a
-  band. Edit Mode's selection highlight shows the bounds while placing.
+  band. The frame is not an Edit Mode system, so Blizzard's selection
+  highlight does not draw for it: while Edit Mode is open the frame shows
+  its own placement handle — a translucent band over its bounds and a
+  "4everActionTimeline — drag" label — hidden again on exit.
 
 ### Settings window
 

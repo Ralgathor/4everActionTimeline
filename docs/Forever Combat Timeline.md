@@ -140,6 +140,26 @@ Design tree settled via the grilling session; shared language lives in the timel
 
 Each answer changes the design. Most fit into the existing SwingTestLog harness.
 
+**Verdicts (session 2026-10-06, build 70235; evidence and steps in `PROBE_SESSION.md`):**
+
+| # | Probe | Verdict |
+| --- | --- | --- |
+| 1 | Cast IDs, boss pull | Plain (Witherfang, 98 s); no secret spell ID anywhere |
+| 2 | SUCCEEDED on avoided attacks | Fires for dodged/parried/missed Heroic Strike; Sunder not tested |
+| 3 | `isActive` in combat | Plain, flips on time; also true during the GCD |
+| 4 | Sink precision | Ran without errors; precision by eye not recorded |
+| 5 | `UnitPower` | Secret, even out of combat |
+| 6 | Queued abilities | Answered earlier: plain |
+| 7 | Extra attacks | Not run (level 6) |
+| 8 | Cooldown Manager | Near-empty (racials only on Paladin) |
+| 9 | Edit Mode | Pass with ForeverCDM's `EventRegistry` pattern; Edit Mode scale does not apply |
+| 10 | Energy GCD | Spell 61304 absent; energy GCD **1.0 s**, measured in combat from `isActive` flips (follow-up G1b); others 1.5 s |
+| 11 | Cast time | Plain in combat; pushback re-read accurate; INTERRUPTED can repeat |
+| 12 | `IsSpellUsable` | Plain (resource case); reactive conditions not tested |
+| 13 | Heroic Strike SUCCEEDED | At the swing |
+| 14 | Atlases | All present; chevron `uitools-icon-chevron-right/left` |
+| 15 | Shapeshift / stance | Warrior stance read plain; druid not run |
+
 1. **Player cast IDs in a dungeon.** Answered: readable mid-fight (2026-10-05). The past side can key on spell IDs. A boss pull is the remaining check.
 2. **Cast events on avoided attacks.** Does SUCCEEDED fire for a dodged or parried Sunder or Heroic Strike? Gates the cast lane (happened marks for avoided ability casts) and Sunder-count inference — it has no bearing on white-swing outcomes, which are combat-log-only and refused.
 3. **`isActive` in combat.** Is `C_Spell.GetSpellCooldown(...).isActive` readable? Sources disagree.
