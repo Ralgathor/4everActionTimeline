@@ -3,9 +3,9 @@
 A live action timeline for **WoW: Forever**: what you just did and what is
 about to happen, laid out around a now line.
 
-> **Status: in design.** The addon loads and answers `/actiontimeline`, but
-> draws nothing yet. The design is settled in `docs/`; building waits on an
-> in-game probe session on the Forever beta.
+> **Status: early build.** The timeline draws in test mode
+> (`/actiontimeline test`); live swing, cast, GCD and spell lanes arrive in
+> the next builds.
 
 ## What it will show
 
@@ -36,6 +36,9 @@ invents what it cannot see:
 | Command | Action |
 |---|---|
 | `/actiontimeline` | status (version, library check) |
+| `/actiontimeline test` | toggle test mode: fake swings, casts and cooldowns on a running clock |
+| `/actiontimeline test off` | stop test mode |
+| `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |
 
 ## Requirements

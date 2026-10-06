@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M1 foundation: the event store with its secret guard (secret values are
+  dropped and reported once after combat), the renderer (Flat skin,
+  horizontal; pooled marks, ticks and window bars; edge clamp with
+  chevron; overdue pin; visibility In combat / Always / Active), settings
+  resolution over shipped defaults, the probe verdicts as `Probes.lua`, and
+  `/actiontimeline test` (fake events showing the whole mark family) and
+  `/actiontimeline perf`.
 - Addon scaffold: the `4everActionTimeline.toc` manifest, `Core.lua`
   (versioned saved variables `FourEverActionTimelineDB` with the class and
   player layers, the LibClassicSwingTimerAPI gate that loads inert with a

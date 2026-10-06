@@ -358,9 +358,17 @@ numbers.
   feeds update; layout, tints and the set of marks recompute on events
   only. Sink lanes are capped at **6** (the per-frame
   `GetSpellCooldownDuration` read is the one cost that cannot be
-  trimmed). Target: under **0.3 ms** per frame for 15 lanes, measured
-  with `debugprofilestop` around the renderer during the encoding check —
-  a starting figure, replaced by the first measurement.
+  trimmed). Measured with `debugprofilestop` around the renderer
+  (`/actiontimeline perf`, which reports three frame kinds apart). First
+  measurement (M1, build 70235, test mode, 7 lanes, ~14 widgets): plain
+  frames 0.10–0.11 ms average, 0.23–0.31 ms worst; rebuild frames (one or
+  more lanes re-collected) 0.19–0.23 ms average, 0.8–0.9 ms worst; the
+  layout frame on first show (lane sizing, widget creation) 2.7 ms, once.
+  Budget, for 15 lanes: plain frames under **0.3 ms** average, rebuild
+  frames under **1 ms** worst; the one-off layout frame is exempt. Each
+  lane owns its widgets and rebuilds only when it changed, so rebuild cost
+  scales with what changed, not with the lane count. Re-measured at the
+  encoding check.
 - **Session re-seed and hidden-frame convergence**: a login/reload re-seed
   pass rebuilds predicted marks from plain cooldown reads when loading out
   of combat; loading in combat skips (values secret) and unseeded spells

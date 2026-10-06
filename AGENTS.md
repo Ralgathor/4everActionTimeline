@@ -11,9 +11,10 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **scaffold only** — `Core.lua` bootstraps saved variables, gates on
-the library and registers the slash command. Nothing renders yet; the build
-waits on the probe session (`docs/Forever Combat Timeline.md`, probes 1–15).
+Status: **M1, foundation** — the event store, the renderer (Flat skin,
+horizontal) and test mode exist; no live lane yet (hands arrive in M2).
+The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
+verdicts live in `Probes.lua`.
 
 All swing state comes from **LibClassicSwingTimerAPI** (embedded via
 `.pkgmeta` externals, pinned to tag `v2.2.0`, LibStub MINOR 37 — bump
@@ -41,7 +42,18 @@ addons are independent (ADR-0003).
 - `4everActionTimeline.toc` — manifest. The addon name starts with a digit;
   the saved-variable global is `FourEverActionTimelineDB` and the cross-file
   namespace is the global `FourEverActionTimeline` (valid Lua identifiers).
-- `Core.lua` — bootstrap, saved variables, library gate, slash commands.
+- `Core.lua` — bootstrap, saved variables, library gate, combat state, slash
+  commands.
+- `Probes.lua` — the probe verdicts (`Addon.PROBES`); a probe-gated branch
+  reads its value here.
+- `Util.lua` — the secret guard and drop report, pools, the atlas guard.
+- `Settings.lua` — shipped defaults → player layer for the globals.
+- `Store.lua` — the event store; `Store:Ingest` is testing seam 1.
+- `Layout.lua` — lane registry, lane order, the time axis, and the mark
+  descriptor contract every lane's `Collect` follows.
+- `Renderer.lua` — the timeline frame, pooled widgets, the OnUpdate pass,
+  visibility and the expiry sweep.
+- `TestMode.lua` — `/actiontimeline test`: fake events and test lanes.
 - `.pkgmeta` — BigWigs packager externals (LibStub, CallbackHandler-1.0, the
   library) and package ignores.
 - `docs/`, `GLOSSARY.md` — design; not shipped in the package.

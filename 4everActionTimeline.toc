@@ -10,3 +10,10 @@ Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibClassicSwingTimerAPI\LibClassicSwingTimerAPI.lua
 Core.lua
+Probes.lua
+Util.lua
+Settings.lua
+Store.lua
+Layout.lua
+Renderer.lua
+TestMode.lua

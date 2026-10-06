@@ -67,6 +67,14 @@ frame:SetScript("OnEvent", function(_, event, arg1)
 		end
 	elseif event == "PLAYER_LOGIN" then
 		Addon:OnEnable()
+	elseif event == "PLAYER_REGEN_DISABLED" then
+		Addon.inCombat = true
+		Addon.Renderer:UpdateVisibility()
+	elseif event == "PLAYER_REGEN_ENABLED" then
+		Addon.inCombat = false
+		Addon.Renderer:UpdateVisibility()
+		-- Secret drops are reported once, after the fight, never mid-combat.
+		Addon.Util.ReportDrops()
 	end
 end)
 
@@ -91,6 +99,12 @@ function Addon:OnEnable()
 	end
 	self.lib = lib
 	self.libMinor = minor
+
+	-- A /reload mid-fight starts in combat.
+	self.inCombat = InCombatLockdown and InCombatLockdown() or false
+	frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+	self.Renderer:Init()
 end
 
 function Addon:Print(message)
@@ -105,16 +119,41 @@ SLASH_4EVERACTIONTIMELINE1 = "/actiontimeline"
 -- Placeholder short alias; uniqueness is checked before the first publish.
 SLASH_4EVERACTIONTIMELINE2 = "/atl"
 
+local function PrintPerf()
+	local steady, rebuild, layout, widgets, lanes = Addon.Renderer:Perf()
+	if steady.count + rebuild.count + layout.count == 0 then
+		Addon:Print("no frame-time samples yet: the timeline has not been shown since the last reset.")
+		return
+	end
+	Addon:Print(format("renderer, %d lanes, %d widgets (budget: under 0.3 ms per frame for 15 lanes):", lanes, widgets))
+	Addon:Print(format("  frames: %.3f ms average, %.3f ms worst (%d)", steady.average, steady.worst, steady.count))
+	Addon:Print(format("  rebuild frames: %.3f ms average, %.3f ms worst (%d)", rebuild.average, rebuild.worst, rebuild.count))
+	if layout.count > 0 then
+		Addon:Print(format("  layout frames (first show, widget creation): %.3f ms worst (%d)", layout.worst, layout.count))
+	end
+	Addon.Renderer:ResetPerf()
+end
+
 SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
-	local command = strtrim(msg or ""):lower():match("^(%S*)")
+	local command, rest = strtrim(msg or ""):lower():match("^(%S*)%s*(.-)$")
 	if command == "" or command == "status" then
 		if Addon.lib then
-			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Nothing to show yet: the timeline is not built.")
+			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live lanes arrive in later builds; |cffdddddd/actiontimeline test|r shows the timeline with fake events.")
 		else
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [off], perf, help")
+	elseif not Addon.lib then
+		Addon:Print("inert (library missing or too old): only status and help are available.")
+	elseif command == "test" then
+		if rest == "off" or (rest == "" and Addon.TestMode:IsRunning()) then
+			Addon.TestMode:Stop()
+		else
+			Addon.TestMode:Start()
+		end
+	elseif command == "perf" then
+		PrintPerf()
 	else
 		Addon:Print("Unknown command: " .. command .. ". Try |cffdddddd/actiontimeline help|r")
 	end
