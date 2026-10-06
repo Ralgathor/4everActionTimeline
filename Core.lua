@@ -80,6 +80,7 @@ end)
 
 function Addon:OnEnable()
 	local _, classToken = UnitClass("player")
+	self.classToken = classToken
 	local db = self.db
 	db.classes[classToken] = db.classes[classToken] or {}
 	local key = PlayerKey()
@@ -108,6 +109,7 @@ function Addon:OnEnable()
 	self.Hands:Init(lib)
 	self.Gcd:Init()
 	self.Casts:Init()
+	self.Spells:Init()
 	self.Layout:RefreshPresence()
 end
 
@@ -140,8 +142,47 @@ end
 
 local VISIBILITY_MODES = { combat = true, always = true, active = true }
 
+-- "<spell> <value>": the spell's lane base ID, its name and the value
+-- (lower-cased), or nil after printing the usage when either is invalid.
+local function SpellCommand(rest, usage, valid)
+	local spell, value = rest:match("^(.-)%s+(%S+)$")
+	value = value and value:lower()
+	local base, name = Addon:LaneBaseFor(spell or "")
+	if not (base and value and valid(value)) then
+		Addon:Print("usage: |cffdddddd" .. usage .. "|r")
+		return nil
+	end
+	return base, name or tostring(base), value
+end
+
+-- /actiontimeline lane <spell> on|off: enables a spell lane for the class
+-- (shared by its characters) until the lane window exists (M6).
+local function LaneCommand(rest)
+	local base, name, value = SpellCommand(rest, "/actiontimeline lane <spell name or ID> on|off", function(v)
+		return v == "on" or v == "off"
+	end)
+	if base then
+		Addon:SetLaneValue("class", base, "enabled", value == "on")
+		Addon:Print(format("%s lane %s for your class.", name, value == "on" and "enabled" or "disabled"))
+	end
+end
+
+-- /actiontimeline override <spell> <seconds|clear>: this character's manual
+-- cooldown for a spell that cannot be calibrated safely.
+local function OverrideCommand(rest)
+	local base, name, value = SpellCommand(rest, "/actiontimeline override <spell name or ID> <seconds|clear>", function(v)
+		return tonumber(v) or v == "clear"
+	end)
+	if base then
+		local seconds = tonumber(value)
+		Addon:SetLaneValue("player", base, "override", seconds)
+		Addon:Print(seconds and format("%s: cooldown override %.1f s.", name, seconds) or format("%s: override cleared.", name))
+	end
+end
+
 SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
-	local command, rest = strtrim(msg or ""):lower():match("^(%S*)%s*(.-)$")
+	local command, rest = strtrim(msg or ""):match("^(%S*)%s*(.-)$")
+	command = command:lower()
 	if command == "" or command == "status" then
 		if Addon.lib then
 			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live: swing, GCD and cast lanes. |cffdddddd/actiontimeline test|r shows every mark with fake events; |cffdddddd/actiontimeline test effects|r replays the swing effects.")
@@ -154,11 +195,12 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], perf, help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], lane <spell> on | off, override <spell> <seconds | clear>, calibration [wipe], debug, perf, help")
 	elseif not Addon.lib then
 		Addon:Print("inert (library missing or too old): only status and help are available.")
 	elseif command == "test" then
 		local TestMode = Addon.TestMode
+		rest = rest:lower()
 		if rest == "effects" then
 			TestMode:StartEffects()
 		elseif rest == "off" or (rest == "" and TestMode:IsRunning()) then
@@ -169,8 +211,28 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 		end
 	elseif command == "perf" then
 		PrintPerf()
+	elseif command == "calibration" then
+		if rest:lower() == "wipe" then
+			Addon.Calibration:Wipe()
+			Addon:Print("calibration wiped: every spell is uncalibrated until it is read again.")
+		else
+			local lines = Addon.Spells:Report()
+			Addon:Print(#lines > 0 and "calibration:" or "no spell lanes tracked.")
+			for _, line in ipairs(lines) do
+				Addon:Print("  " .. line)
+			end
+		end
+	elseif command == "debug" then
+		for _, line in ipairs(Addon.Spells:Debug()) do
+			Addon:Print(line)
+		end
+	elseif command == "lane" then
+		LaneCommand(rest)
+	elseif command == "override" then
+		OverrideCommand(rest)
 	elseif command == "show" then
 		-- The visibility setting until the Settings panel exists (M6).
+		rest = rest:lower()
 		if VISIBILITY_MODES[rest] then
 			Addon:SetSetting("visibility", rest)
 			Addon:Print("visibility: " .. rest .. ".")

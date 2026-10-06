@@ -69,6 +69,12 @@ function Layout:Lanes()
 	return lanes
 end
 
+-- Re-sorts after lanes changed their `order` (the lane set's order).
+function Layout:SortLanes()
+	sort(lanes, LaneOrder)
+	Addon.Renderer:MarkLayoutDirty()
+end
+
 -- A lane whose presence Layout manages: registered while its setting (if
 -- it has one) is on and its Available() (if it has one) says so.
 function Layout:DeclareLane(lane)

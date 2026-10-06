@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M4 spell lanes. Curated data for all nine classes (starter sets, GCD
+  references, linked and delayed-start cooldowns, resets, stance and form
+  requirements); the lane set resolved through shipped defaults, class and
+  player layers, each spell at its known rank. Spell lanes: happened marks,
+  predicted ready marks (exact and full color from an out-of-combat read,
+  desaturated from calibration), overdue until the engine reports ready,
+  the ready, unusable (blue, grey, wrong stance or form) and
+  unknown-cooldown marks, linked cooldowns, resets, delayed starts.
+  Calibration: out-of-combat and combat-end reads, the learned cast offset,
+  learned links, GCD-length rejection, stale flags (talent change, early
+  cast, stuck overdue), login re-seed, pruning of retired ranks.
+  `/actiontimeline lane`, `override` and `calibration [wipe]`.
 - M3 cast and GCD lanes. Cast lane: every completed cast and instant (not
   auto-repeat shots, on-next-swing abilities or the Attack toggle), the
   in-flight cast's icon on the now line with a full-color completion mark

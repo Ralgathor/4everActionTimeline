@@ -15,8 +15,8 @@
 -- (on-next-swing abilities ride the main hand; the Attack toggle).
 --
 -- This module owns the player's spellcast events: it feeds the GCD lane
--- (which works whether or not the cast lane is shown) and hands
--- on-next-swing SUCCEEDEDs to the hand lanes.
+-- (which works whether or not the cast lane is shown), every SUCCEEDED to
+-- the spell lanes, and on-next-swing SUCCEEDEDs to the hand lanes.
 
 local Addon = FourEverActionTimeline
 local Util, Layout, Store, Renderer, Effects, Hands =
@@ -24,7 +24,6 @@ local Util, Layout, Store, Renderer, Effects, Hands =
 
 local GetTime = GetTime
 local UnitCastingInfo, UnitChannelInfo = UnitCastingInfo, UnitChannelInfo
-local GetSpellTexture = C_Spell and C_Spell.GetSpellTexture
 local IsAutoRepeatSpell = C_Spell and C_Spell.IsAutoRepeatSpell
 local InCombatLockdown = InCombatLockdown
 local IsSecret = Util.IsSecret
@@ -86,7 +85,7 @@ local function Icon(spellID, texture)
 	if texture and not IsSecret(texture) then
 		return texture
 	end
-	return GetSpellTexture and GetSpellTexture(spellID)
+	return Addon.Spellbook.Icon(spellID)
 end
 
 -- Marks only while the lane is shown; the GCD lane is fed regardless.
@@ -175,6 +174,8 @@ function handlers.UNIT_SPELLCAST_START(guid, spellID)
 end
 
 function handlers.UNIT_SPELLCAST_SUCCEEDED(guid, spellID)
+	-- Spell lanes track every cast with a cooldown, on-next-swing ones too.
+	Addon.Spells:OnSucceeded(spellID, GetTime())
 	if Hands.IsOnNextSwing(spellID) then
 		Hands:OnSpellSucceeded(spellID)
 		return

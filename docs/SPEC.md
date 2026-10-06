@@ -238,12 +238,23 @@ numbers.
   an opt-in overlay, never the foundation** (ADR-0001). Calibration
   sources: an automatic read on `SPELL_UPDATE_COOLDOWN` after any
   out-of-combat cast, a read pass when combat ends (spells just used are
-  on cooldown and plain), and per-spell manual overrides. The slash
+  on cooldown and plain — run 0.2, 0.5 and 1.0 s after the event, since
+  values turn plain a moment after it), an **in-combat measurement**
+  (M4 decision, 2026-10-06: spells needing a target can only be cast in
+  combat, and short ones end before combat does — the SUCCEEDED to the
+  instant `isActive`, plain in combat, turns false is the cooldown, to
+  ±0.05 s; both edges arrive a server round trip after the engine's
+  instants, so no offset is applied (Consecration: 8.2 s with the offset,
+  8.0 s without, plain read 8.0 s); ignored when no longer than the GCD or when a GCD
+  window ended at the same moment; it fills a gap or replaces a stale
+  value, never a current plain read, and the next plain read replaces
+  it), and per-spell manual overrides. The slash
   command is a **report** (calibrated, stale, delayed-start,
   uncalibrated), not a reader — out of combat with nothing cooling there
   is nothing to read. A read whose duration is no longer than the GCD is
   rejected unless the spell is known to have so short a cooldown. A
-  talent change marks the whole cache **stale** (still predicting,
+  talent change — a change of the talent ranks, not merely the event,
+  which also fires with nothing changed — marks the whole cache **stale** (still predicting,
   flagged for re-read) rather than wiping it; entries for spell IDs absent
   from the current spellbook scan are pruned. In-combat evidence also
   marks a single entry stale: a cast before the predicted ready instant

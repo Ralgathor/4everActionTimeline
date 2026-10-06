@@ -14,15 +14,12 @@
 -- clear before its natural end cuts the window at the stop instant.
 
 local Addon = FourEverActionTimeline
-local Util, Layout, Store, Renderer = Addon.Util, Addon.Layout, Addon.Store, Addon.Renderer
+local Util, Layout, Store, Renderer, Spellbook, Calibration =
+	Addon.Util, Addon.Layout, Addon.Store, Addon.Renderer, Addon.Spellbook, Addon.Calibration
 
 local GetTime = GetTime
 local max = math.max
-local GetSpellCooldown = C_Spell and C_Spell.GetSpellCooldown
-local GetSpellName = C_Spell and C_Spell.GetSpellName
 local UnitPowerType = UnitPowerType
-local IsSpellKnown = (C_SpellBook and C_SpellBook.IsSpellKnown) or IsSpellKnown or IsPlayerSpell
-local IsSecret = Util.IsSecret
 
 local POWER_ENERGY = 3 -- Enum.PowerType.Energy
 -- The engine's GCD can register a moment after the cast event: re-read for
@@ -33,19 +30,6 @@ local OPEN_GRACE = 0.1
 local STOP_POLL, NATURAL_END_SLACK = 0.05, 0.1
 -- A cast this close before the running window's end is not "inside" it.
 local INSIDE_SLACK = 0.05
--- Per class, the reference candidates in order (base IDs; the first one
--- known is used): no cooldown of their own, bound to the GCD.
-local REFERENCE = {
-	WARRIOR = { 6673, 772 }, -- Battle Shout, Rend
-	ROGUE = { 1752 }, -- Sinister Strike
-	PALADIN = { 635, 21084 }, -- Holy Light, Seal of Righteousness
-	HUNTER = { 1978, 13163 }, -- Serpent Sting, Aspect of the Monkey
-	MAGE = { 133, 168 }, -- Fireball, Frost Armor
-	PRIEST = { 585, 2050 }, -- Smite, Lesser Heal
-	WARLOCK = { 686, 687 }, -- Shadow Bolt, Demon Skin
-	DRUID = { 5176, 5185 }, -- Wrath, Healing Touch
-	SHAMAN = { 403, 331 }, -- Lightning Bolt, Healing Wave
-}
 
 local Gcd = {
 	-- Pale, whitish blue: near the swing timer's GCD tint, clear of
@@ -67,6 +51,13 @@ function lane:IsActive(now)
 	return now < WindowEnd()
 end
 
+-- True when the latest GCD window ended within `slack` of `now`: a spell's
+-- isActive turning false then may be the GCD's end, not its own.
+function Gcd:EndedNear(now, slack)
+	local ending = WindowEnd()
+	return ending > 0 and math.abs(now - ending) < slack
+end
+
 -- Calls step now and then every interval until it returns true or the
 -- deadline passes; returns the ticker (nil when step settled at once).
 local function Watch(previous, interval, deadline, step)
@@ -84,7 +75,7 @@ local function Watch(previous, interval, deadline, step)
 end
 
 -- The GCD length for a cast now: the override, else by power type.
-local function Length()
+function Gcd:Length()
 	local override = Addon:GetSetting("gcdOverride")
 	if override == "1.5" then
 		return 1.5
@@ -102,14 +93,9 @@ end
 
 -- true / false, or nil when the read is unavailable or secret.
 local function GcdRunning()
-	local info = GetSpellCooldown and GetSpellCooldown(reference)
-	local active = info and info.isActive
-	if active == nil then
-		return nil
-	end
-	if IsSecret(active) then
+	local active, _, secret = Calibration:Flags(reference)
+	if secret then
 		Util.CountDrop("gcd")
-		return nil
 	end
 	return active
 end
@@ -127,7 +113,7 @@ function Gcd:OnCast(at)
 		end
 		local running = GcdRunning()
 		if running then
-			window = { kind = "gcd", lane = lane.key, time = at, duration = Length(), color = Gcd.COLOR }
+			window = { kind = "gcd", lane = lane.key, time = at, duration = Gcd:Length(), color = Gcd.COLOR }
 			Store:Ingest(window)
 		end
 		return running ~= false
@@ -155,16 +141,13 @@ function Gcd:OnCastStopped(at)
 	end)
 end
 
--- The first known reference spell for the class (re-resolved as the
--- spellbook changes).
+-- The first known reference spell for the class (the class data's
+-- gcdReference, in order of preference; re-resolved as the spellbook
+-- changes).
 local function ResolveReference()
 	reference = nil
-	local candidates = REFERENCE[select(2, UnitClass("player"))]
-	if not (candidates and IsSpellKnown) then
-		return
-	end
-	for _, spellID in ipairs(candidates) do
-		if IsSpellKnown(spellID) then
+	for _, spellID in ipairs(Addon:ClassInfo().gcdReference) do
+		if Spellbook.IsKnown(spellID) then
 			reference = spellID
 			return
 		end
@@ -173,7 +156,7 @@ end
 
 -- The reference spell's name, for /actiontimeline status.
 function Gcd:ReferenceName()
-	return reference and (GetSpellName and GetSpellName(reference) or tostring(reference)) or nil
+	return reference and (Spellbook.Name(reference) or tostring(reference)) or nil
 end
 
 Layout:DeclareLane(lane)

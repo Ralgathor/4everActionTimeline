@@ -11,9 +11,10 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M3, cast and GCD lanes** — the event store, the renderer (Flat
-skin, horizontal), test mode, and live hand, GCD and cast lanes with their
-effects. Spell lanes, calibration and the curated class data arrive in M4.
+Status: **M4, spell lanes** — the event store, the renderer (Flat skin,
+horizontal), test mode, and live hand, GCD, cast and spell lanes with
+calibration and the curated class data. The engine-drawn sink lanes arrive
+in M5, the settings surfaces in M6.
 The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
 verdicts live in `Probes.lua`.
 
@@ -60,8 +61,16 @@ addons are independent (ADR-0003).
   (marked for removal once the library reports a reason).
 - `Hands.lua` — the hand lanes: library callbacks, landings, predictions,
   presence, icons, the queued swap, effects.
+- `Data\<Class>.lua` — curated class data (starter set, GCD reference,
+  linked, delayed-start, resets, forms, short cooldowns); field meanings
+  in `Data\Warrior.lua`. Warrior, Rogue, Paladin verified in game.
+- `Spellbook.lua` — resolves a lane's base spell to the known rank.
+- `Calibration.lua` — the calibration cache: learned durations, the cast
+  offset, links, delayed-start and stale flags.
 - `Gcd.lua` — the GCD lane: window bars, opened only when the engine
   reports a GCD running (a per-class reference spell's `isActive`).
+- `Spells.lua` — the spell lanes: predictions, the now-line idle family,
+  overdue, linked cooldowns, resets, the calibration report.
 - `Casts.lua` — the cast lane: completions, the in-flight now-line icon and
   completion mark, pushback, stopped casts, channels.
 - `TestMode.lua` — `/actiontimeline test`: fake events and test lanes;

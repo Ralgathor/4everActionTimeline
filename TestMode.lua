@@ -14,7 +14,6 @@ local Util, Layout, Store, Renderer = Addon.Util, Addon.Layout, Addon.Store, Add
 
 local GetTime = GetTime
 local floor, max = math.floor, math.max
-local GetSpellTexture = C_Spell and C_Spell.GetSpellTexture
 local GetInventoryItemTexture = GetInventoryItemTexture
 
 local TICK = 0.05
@@ -33,7 +32,7 @@ local lanes = {}
 
 local function SpellIcon(spellID)
 	-- nil falls back to the renderer's question-mark icon.
-	return GetSpellTexture and GetSpellTexture(spellID)
+	return Addon.Spellbook.Icon(spellID)
 end
 
 local function Ingest(entry)

@@ -4,7 +4,9 @@ A live action timeline for **WoW: Forever**: what you just did and what is
 about to happen, laid out around a now line.
 
 > **Status: early build.** Live swing lanes (main hand, off hand, ranged),
-> the GCD lane and the cast lane; spell lanes arrive in the next build.
+> the GCD lane, the cast lane and spell cooldown lanes. Cast each tracked
+> spell once out of combat so its cooldown is learned
+> (`/actiontimeline calibration` shows what is known).
 
 ## What it will show
 
@@ -39,6 +41,10 @@ invents what it cannot see:
 | `/actiontimeline test effects` | replay the swing effects (parry, early landing, reset, swap, overdue, retry) |
 | `/actiontimeline test off` | stop test mode |
 | `/actiontimeline show combat \| always \| active` | when the timeline shows: in combat (default), always, or while anything is on it |
+| `/actiontimeline lane <spell> on \| off` | track or stop tracking a spell's cooldown (for your class) |
+| `/actiontimeline override <spell> <seconds \| clear>` | set this character's cooldown for a spell by hand |
+| `/actiontimeline calibration [wipe]` | what each tracked spell's cooldown is known as (or forget them all) |
+| `/actiontimeline debug` | each spell lane's live state and the last casts (for bug reports) |
 | `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |
 

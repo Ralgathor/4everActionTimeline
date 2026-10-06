@@ -559,11 +559,12 @@ function Renderer:Perf()
 	return Summarize(perfSteady), Summarize(perfRebuild), Summarize(perfLayout), widgets, #lanes
 end
 
--- The lane keys in order and whether the frame is shown, for /actiontimeline status.
+-- The lanes in order (a spell lane by its spell's name) and whether the
+-- frame is shown, for /actiontimeline status.
 function Renderer:Status()
 	local keys = {}
 	for i, lane in ipairs(Layout:Lanes()) do
-		keys[i] = lane.key
+		keys[i] = lane.name or lane.key
 	end
 	return keys, frame ~= nil and frame:IsShown()
 end
