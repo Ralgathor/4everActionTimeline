@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M3 cast and GCD lanes. Cast lane: every completed cast and instant (not
+  auto-repeat shots, on-next-swing abilities or the Attack toggle), the
+  in-flight cast's icon on the now line with a full-color completion mark
+  from the live cast-time read (desaturated from the learned cast time if
+  that read turns secret), pushback with an amber pop, red marks for
+  stopped and interrupted casts (refused presses leave none), channels
+  (red when stopped early). GCD lane: window bars opened only when the
+  engine reports a GCD running (a per-class reference spell's isActive),
+  1.5 s or 1.0 s for energy users, with an override setting.
 - M2 hand lanes: main hand, off hand and ranged from LibClassicSwingTimerAPI
   (landings, the next landing, the cadence chain, overdue, parked and
   paused hands; weapon, druid-form and queued-ability icons; equipment-driven

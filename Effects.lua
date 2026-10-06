@@ -89,11 +89,21 @@ function Effects:Streak(lane, from, to, color)
 	live[#live + 1] = { kind = "streak", lane = lane, from = from, to = to, texture = texture, start = GetTime(), duration = STREAK_TIME }
 end
 
--- Starts the across-lane shake: the lane's Collect passes lane.shakeStart
--- to its shaking marks as their `shake` field. The CVar is read once per shake.
+-- A corrected prediction: the streak from the old instant to the new one,
+-- and the pop at the new one unless the pop budget is spent (pop == false).
+function Effects:Correct(lane, from, to, color, pop)
+	if pop ~= false then
+		self:Pop(lane, to, color)
+	end
+	self:Streak(lane, from, to, color)
+end
+
+-- Starts the across-lane shake and returns its start time, which shaking
+-- marks carry as their `shake` field. The CVar is read once per shake.
 function Effects:Shake(lane)
 	lane.shakeStart = GetTime()
 	shakeStrength = tonumber(GetCVar and GetCVar("ShakeStrengthUI")) or 1
+	return lane.shakeStart
 end
 
 -- The shake's offset (pixels, across the lane) for a shake started at start.

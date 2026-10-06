@@ -106,6 +106,9 @@ function Addon:OnEnable()
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 	self.Renderer:Init()
 	self.Hands:Init(lib)
+	self.Gcd:Init()
+	self.Casts:Init()
+	self.Layout:RefreshPresence()
 end
 
 function Addon:Print(message)
@@ -135,21 +138,23 @@ local function PrintPerf()
 	Addon.Renderer:ResetPerf()
 end
 
+local VISIBILITY_MODES = { combat = true, always = true, active = true }
+
 SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 	local command, rest = strtrim(msg or ""):lower():match("^(%S*)%s*(.-)$")
 	if command == "" or command == "status" then
 		if Addon.lib then
-			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live: swing lanes. |cffdddddd/actiontimeline test|r shows every mark with fake events; |cffdddddd/actiontimeline test effects|r replays the swing effects.")
+			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live: swing, GCD and cast lanes. |cffdddddd/actiontimeline test|r shows every mark with fake events; |cffdddddd/actiontimeline test effects|r replays the swing effects.")
 			local keys, shown = Addon.Renderer:Status()
-			Addon:Print(format("lanes: %s; visibility %s, %s, frame %s.",
+			Addon:Print(format("lanes: %s; visibility %s, %s, frame %s; GCD reference: %s.",
 				#keys > 0 and table.concat(keys, ", ") or "none",
 				Addon:GetSetting("visibility"), Addon.inCombat and "in combat" or "out of combat",
-				shown and "shown" or "hidden"))
+				shown and "shown" or "hidden", Addon.Gcd:ReferenceName() or "none"))
 		else
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], perf, help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], perf, help")
 	elseif not Addon.lib then
 		Addon:Print("inert (library missing or too old): only status and help are available.")
 	elseif command == "test" then
@@ -164,6 +169,14 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 		end
 	elseif command == "perf" then
 		PrintPerf()
+	elseif command == "show" then
+		-- The visibility setting until the Settings panel exists (M6).
+		if VISIBILITY_MODES[rest] then
+			Addon:SetSetting("visibility", rest)
+			Addon:Print("visibility: " .. rest .. ".")
+		else
+			Addon:Print("visibility is " .. Addon:GetSetting("visibility") .. ". Usage: |cffdddddd/actiontimeline show combat|r (default), |cffdddddd/actiontimeline show always|r, |cffdddddd/actiontimeline show active|r (while anything is on the timeline).")
+		end
 	else
 		Addon:Print("Unknown command: " .. command .. ". Try |cffdddddd/actiontimeline help|r")
 	end

@@ -20,6 +20,12 @@ local DEFAULTS = {
 	showMainhand = true,
 	showOffhand = true,
 	showRanged = true,
+	showCasts = true,
+	showGcd = true,
+	-- GCD length: "auto" (by power type: 1.0 s for energy users, else 1.5 s,
+	-- both measured), "1.5", "1.0" or "custom" (gcdCustom, 0.5-2.0 s).
+	gcdOverride = "auto",
+	gcdCustom = 1.5,
 }
 Addon.DEFAULTS = DEFAULTS
 
@@ -44,6 +50,7 @@ function Addon:SetSetting(key, value)
 	end
 	player.settings[key] = value
 	if self.Renderer then
+		self.Layout:RefreshPresence()
 		self.Renderer:MarkLayoutDirty()
 		self.Renderer:UpdateVisibility()
 	end

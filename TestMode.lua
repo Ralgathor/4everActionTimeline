@@ -24,7 +24,6 @@ local CLIP_EVERY = 6 -- a clip tick before landing k (k % 6 == 2)
 local GCD_PERIOD, GCD = 3.2, Addon.PROBES.gcd
 local CAST_PERIOD, CAST_TIME, CAST_STOP_AT = 6.0, 2.0, 1.2
 local SECRET_EVERY = 10
-local GCD_COLOR = { 0.78, 0.88, 1.0, 0.9 } -- pale whitish blue, clear of the mana blue
 
 local TestMode = {}
 Addon.TestMode = TestMode
@@ -121,7 +120,7 @@ function gcd:Advance(now)
 	local t = t0 + 0.4 + self.nextCast * GCD_PERIOD
 	if t <= now then
 		-- A happened entry with a duration renders as a window bar.
-		Ingest({ kind = "gcd", lane = self.key, time = t, duration = GCD, color = GCD_COLOR })
+		Ingest({ kind = "gcd", lane = self.key, time = t, duration = GCD, color = Addon.Gcd.COLOR })
 		self.nextCast = self.nextCast + 1
 	end
 end

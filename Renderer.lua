@@ -522,6 +522,11 @@ function Renderer:MarkDirty(lane)
 	else
 		allDirty = true
 	end
+	-- "Active" visibility shows the frame the moment a lane changes (a cast or
+	-- swing starting) instead of waiting for the sweep.
+	if frame and not frame:IsShown() and Addon:GetSetting("visibility") == "active" then
+		self:UpdateVisibility()
+	end
 end
 
 -- The next frame re-lays the lanes out, which also rebuilds every lane.

@@ -39,6 +39,7 @@ local ON_NEXT_SWING_WINDOW = 0.15
 local RESET_DEDUPE = 0.1
 local SWEEP_INTERVAL = Classify.STALE_LANDING_GRACE / 2
 local ATTACK_ICON = 135274 -- fallback when a slot reports no texture
+local ATTACK_SPELL = 6603 -- the auto-attack toggle
 
 local Hands = {}
 Addon.Hands = Hands
@@ -130,48 +131,38 @@ local function IsActive(lane)
 	return lane.state.active
 end
 
-for i, hand in ipairs(HANDS) do
-	lanes[hand] = { key = hand, group = "hand", order = i, hand = hand, state = {}, Collect = Collect, IsActive = IsActive }
+-- A hand's lane needs its weapon (test effects show main hand and ranged
+-- without one).
+local function Available(lane)
+	return HasWeapon(lane.hand) or (Hands.testing and lane.hand ~= "offhand") or false
 end
 
--- Registers or drops each hand's lane and refreshes its icon; a lane only
--- rebuilds when its icon changed, and visibility only re-evaluates when a
--- lane came or went (UNIT_INVENTORY_CHANGED fires on every bag change).
+for i, hand in ipairs(HANDS) do
+	lanes[hand] = {
+		key = hand, group = "hand", order = i, hand = hand, state = {}, setting = SETTING[hand],
+		Collect = Collect, IsActive = IsActive, Available = Available,
+	}
+	Layout:DeclareLane(lanes[hand])
+end
+
+-- Re-checks the hand lanes' presence and refreshes their icons; a lane only
+-- rebuilds when its icon changed (UNIT_INVENTORY_CHANGED fires on every bag
+-- change).
 function Hands:UpdatePresence()
-	local changed = false
+	Layout:RefreshPresence()
 	for _, hand in ipairs(HANDS) do
 		local lane = lanes[hand]
-		local present = Addon:GetSetting(SETTING[hand]) and (HasWeapon(hand) or (self.testing and hand ~= "offhand"))
-		if present and not lane.registered then
-			lane.registered, changed = true, true
-			Layout:RegisterLane(lane)
-		elseif not present and lane.registered then
-			lane.registered, changed = nil, true
-			Layout:UnregisterLane(lane)
-		end
 		local icon = CurrentIcon(hand)
 		if icon ~= lane.icon then
 			lane.icon = icon
 			Renderer:MarkDirty(lane)
 		end
 	end
-	if changed then
-		Renderer:UpdateVisibility()
-	end
 end
 
 -- ---------------------------------------------------------------------------
 -- Library events -> state, happened entries and effects
 -- ---------------------------------------------------------------------------
-
--- A corrected prediction: the streak from the old instant to the new one,
--- and the pop at the new one unless the pop budget is spent.
-local function Correct(lane, from, to, color, pop)
-	if pop ~= false then
-		Effects:Pop(lane, to, color)
-	end
-	Effects:Streak(lane, from, to, color)
-end
 
 -- The landing's icon: the on-next-swing ability it carried (its SUCCEEDED
 -- arrived just before), else the hand's current icon.
@@ -195,7 +186,7 @@ local function ResetFeedback(lane, at, from, to)
 	end
 	state.resetAt = at
 	Ingest({ kind = "clip", lane = lane.key, shape = "tick", time = at })
-	Correct(lane, from, to or from, Effects.RED)
+	Effects:Correct(lane, from, to or from, Effects.RED)
 	Effects:Shake(lane)
 	Renderer:MarkDirty(lane)
 end
@@ -217,10 +208,10 @@ function Hands:OnStart(hand, speed, expiration, isUpdate)
 		if reason == "retry" then
 			-- The honest sawtooth: every retry jumps the mark out; the chain
 			-- wears the amber border and gets one amber pop.
-			Correct(lane, previous, expiration, Effects.AMBER, not state.heldSince)
+			Effects:Correct(lane, previous, expiration, Effects.AMBER, not state.heldSince)
 			state.heldSince = state.heldSince or now
 		elseif reason then -- parry or rescale: the landing moved earlier
-			Correct(lane, previous, expiration, Effects.TEAL)
+			Effects:Correct(lane, previous, expiration, Effects.TEAL)
 		end
 	else
 		local reason = Classify.Start(state, speed, now)
@@ -235,7 +226,7 @@ function Hands:OnStart(hand, speed, expiration, isUpdate)
 			Ingest(entry)
 			state.lastLanding, state.lastLandingAt = entry, now
 			if reason == "early" then
-				Correct(lane, previous, landing, Effects.TEAL)
+				Effects:Correct(lane, previous, landing, Effects.TEAL)
 			end
 			if state.heldSince then
 				-- The delay span: from the first retry to the shot that fired.
@@ -319,17 +310,24 @@ local function PollQueued()
 	end
 end
 
--- An on-next-swing ability's SUCCEEDED: tag the landing it rode. If the
--- swing's START came first this frame, retag that landing; else hold the
--- icon for the START.
-local function OnSpellSucceeded(spellID)
-	if IsSecret(spellID) then
-		return
-	end
+-- True for an on-next-swing ability (any rank): its happened mark belongs
+-- to the main-hand swing it rode, never to the cast lane.
+function Hands.IsOnNextSwing(spellID)
 	local base = FindBaseSpellByID and FindBaseSpellByID(spellID) or spellID
-	if not (ON_NEXT_SWING[base] or ON_NEXT_SWING[spellID]) then
-		return
-	end
+	return ON_NEXT_SWING[base] or ON_NEXT_SWING[spellID] or false
+end
+
+-- True for a spell the hand lanes own, never a cast-lane mark: the
+-- on-next-swing abilities and the auto-attack toggle.
+function Hands.OwnsSpell(spellID)
+	return spellID == ATTACK_SPELL or Hands.IsOnNextSwing(spellID)
+end
+
+-- An on-next-swing ability's SUCCEEDED (routed here by the cast lane, which
+-- owns the spellcast events): tag the landing it rode. If the swing's START
+-- came first this frame, retag that landing; else hold the icon for the
+-- START.
+function Hands:OnSpellSucceeded(spellID)
 	local lane, now = lanes.mainhand, GetTime()
 	local state, icon = lane.state, GetSpellTexture and GetSpellTexture(spellID)
 	if state.lastLanding and state.lastLandingAt == now then
@@ -415,17 +413,12 @@ function Hands:Init(lib)
 	-- inventory change; a swing on a lane-less hand also re-checks (OnStart).
 	events:RegisterEvent("PLAYER_ENTERING_WORLD")
 	events:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
-	events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-	events:SetScript("OnEvent", function(_, event, _, _, spellID)
-		if event == "UNIT_SPELLCAST_SUCCEEDED" then
-			OnSpellSucceeded(spellID)
-		else
-			Hands:UpdatePresence()
-			if event == "PLAYER_ENTERING_WORLD" then
-				C_Timer.After(1.0, function()
-					Hands:UpdatePresence()
-				end)
-			end
+	events:SetScript("OnEvent", function(_, event)
+		Hands:UpdatePresence()
+		if event == "PLAYER_ENTERING_WORLD" then
+			C_Timer.After(1.0, function()
+				Hands:UpdatePresence()
+			end)
 		end
 	end)
 

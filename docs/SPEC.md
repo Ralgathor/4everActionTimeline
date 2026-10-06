@@ -502,7 +502,25 @@ numbers.
   windows never chain into the future — one cast deep. The window draws on
   the GCD lane only in v1; EventHorizon-style per-spell-lane GCD shading is
   post-v1. The queue keeps its mark-swap treatment on the main-hand lane —
-  no dedicated queue lane.
+  no dedicated queue lane. **Which casts start a GCD** is read from the
+  engine, never assumed (M3 decision, 2026-10-06): some spells are off the
+  GCD (Sprint, Evasion, Stealth, Judgement — probe session), and a window
+  for them would invent a fact. Right after a cast — at START for
+  cast-time spells, at SUCCEEDED for instants — the lane reads `isActive`
+  (plain in combat, probe 3) on a per-class **reference spell**: one with
+  no cooldown of its own that is bound to the GCD (Battle Shout, Sinister
+  Strike, Holy Light, …; the first known of a short curated list, folded
+  into the class data in M4). Active opens a window; inactive (re-read
+  once 0.1 s later) opens none; a cast inside a running window cannot
+  start another. When a started cast stops, fails or is interrupted, the
+  same read decides again: the engine clears an interrupted cast's GCD
+  0.04–0.36 s after the interrupt (capture 2026-10-06, four movement
+  interrupts: `isActive` false well before the 1.5 s end, while a
+  completed cast kept its full 1.5 s), so the reference is polled every
+  0.05 s while the window runs; a clear before its natural end cuts the
+  window at the stop instant, otherwise it keeps its length. The same
+  capture shows the engine's GCD starting ~0.2 s before the START event
+  arrives — the cast offset again (M4 calibration can backdate windows).
 - **Lane set discovery**: spellbook-driven, following the Blizzard
   tracker pattern as implemented on Forever by ForeverCDM — every known
   class spell is available as a toggle; no capture flows, no typed input. A

@@ -6,7 +6,8 @@
 --
 -- A lane is a table {key, group, order, Collect(self, now, out)}, plus an
 -- optional IsActive(self, now) for "Active" visibility (a live mark while
--- the frame is hidden). Collect appends mark descriptors to `out`:
+-- the frame is hidden). A declared lane (DeclareLane) also carries an
+-- optional `setting` and Available(self), and Layout manages its presence. Collect appends mark descriptors to `out`:
 --   shape      "icon" (default) | "tick" | "bar"
 --   t          event time (icon, tick); bars use tStart / tEnd
 --   icon       texture for icon marks
@@ -37,6 +38,7 @@ local GROUP_ORDER = { hand = 1, gcd = 2, cast = 3, spell = 4, sink = 5 }
 Layout.HAPPENED_MARGIN = 1
 
 local lanes = {}
+local declared = {}
 
 local function LaneOrder(a, b)
 	local ga, gb = GROUP_ORDER[a.group], GROUP_ORDER[b.group]
@@ -65,6 +67,32 @@ end
 
 function Layout:Lanes()
 	return lanes
+end
+
+-- A lane whose presence Layout manages: registered while its setting (if
+-- it has one) is on and its Available() (if it has one) says so.
+function Layout:DeclareLane(lane)
+	declared[#declared + 1] = lane
+end
+
+-- Registers or drops each declared lane to match its setting and
+-- availability; visibility re-evaluates only when a lane came or went.
+function Layout:RefreshPresence()
+	local changed = false
+	for _, lane in ipairs(declared) do
+		local present = (lane.setting == nil or Addon:GetSetting(lane.setting)) and (lane.Available == nil or lane:Available())
+		if present and not lane.registered then
+			lane.registered, changed = true, true
+			self:RegisterLane(lane)
+		elseif not present and lane.registered then
+			lane.registered, changed = nil, true
+			self:UnregisterLane(lane)
+		end
+	end
+	if changed then
+		Addon.Renderer:UpdateVisibility()
+	end
+	return changed
 end
 
 -- Geometry, recomputed on every layout pass.
@@ -133,7 +161,7 @@ function Layout.CollectHappened(lane, now, out)
 					out[#out + 1] = { shape = "bar", tStart = time, tEnd = time + duration, color = entry.color }
 				end
 			elseif time >= cull then
-				out[#out + 1] = { shape = entry.shape, t = time, icon = entry.icon, border = entry.border, color = entry.color }
+				out[#out + 1] = { shape = entry.shape, t = time, icon = entry.icon, border = entry.border, color = entry.color, shake = entry.shake }
 			end
 		end
 	end
