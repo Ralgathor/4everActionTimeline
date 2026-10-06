@@ -223,11 +223,16 @@ in v1 — range is an unprobed read and leans toward press-this-next advice.
 ### Settings window
 
 - Mirrors the Cooldown Manager settings layout: icon rows, drag to
-  reorder, side tabs. Built on Blizzard's **generic** shared templates
-  (`LargeSideTabButtonTemplate`, `ResizeLayoutFrame`, ScrollBox lists)
-  with the addon's own mixins — **not** by inheriting
-  `CooldownViewerSettingsItemTemplate` and friends, whose mixins are wired
-  to Blizzard's Cooldown Manager data and settings store.
+  reorder. Never built by inheriting `CooldownViewerSettingsItemTemplate`
+  and friends, whose mixins are wired to Blizzard's Cooldown Manager data
+  and settings store.
+- As built (M6): plain frames and the basic templates only
+  (`BasicFrameTemplateWithInset`, `UICheckButtonTemplate`,
+  `InputBoxTemplate`, `UIPanelButtonTemplate`) — a clipped row list
+  scrolled by the mouse wheel instead of a ScrollBox, and two layer
+  buttons (Class / This character) instead of side tabs: the ScrollBox and
+  side-tab templates could not be verified outside the game. Revisit if
+  the plain list reads poorly.
 - The "overridden" and "new" states are small tags on the row.
 
 ### Motion trail

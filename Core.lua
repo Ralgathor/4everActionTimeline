@@ -111,6 +111,8 @@ function Addon:OnEnable()
 	self.Casts:Init()
 	self.Spells:Init()
 	self.Layout:RefreshPresence()
+	self.Options:Init()
+	self.EditMode:Init(_G.FourEverActionTimelineFrame)
 end
 
 function Addon:Print(message)
@@ -215,7 +217,7 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], lane <spell> on | off, override <spell> <seconds | clear>, sink <spell> on | off, sink countdown on | off, calibration [wipe], debug, perf, help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), config (lane list), options (settings), test [effects | off], show [combat | always | active], lane <spell> on | off, override <spell> <seconds | clear>, sink <spell> on | off, sink countdown on | off, calibration [wipe], debug, perf, help")
 	elseif not Addon.lib then
 		Addon:Print("inert (library missing or too old): only status and help are available.")
 	elseif command == "test" then
@@ -242,6 +244,10 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 				Addon:Print("  " .. line)
 			end
 		end
+	elseif command == "config" then
+		Addon.LaneWindow:Toggle()
+	elseif command == "options" then
+		Addon.Options:Open()
 	elseif command == "debug" then
 		for _, line in ipairs(Addon.Spells:Debug()) do
 			Addon:Print(line)

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M6 settings: the Settings category (visibility, windows, width, lane
+  height and spacing, scale, lane background, hand / GCD / cast lane
+  toggles, GCD length with custom value, engine-lane countdown), the lane
+  window (`/actiontimeline config`: every class spell with enable, engine
+  lane and manual cooldown, drag to reorder, class or character layer,
+  overridden and new tags, reset to class), and placement in Edit Mode
+  (drag handle, snap to Edit Mode frames, position saved per character).
 - M5 engine-drawn sink lanes: opt-in per spell (up to 6, in lane order,
   grouped at the bottom), a transparent StatusBar fed the secret remaining
   cooldown every frame with the spell icon on its leading edge (far edge

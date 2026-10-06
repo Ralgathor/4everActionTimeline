@@ -37,6 +37,8 @@ invents what it cannot see:
 | Command | Action |
 |---|---|
 | `/actiontimeline` | status (version, library check) |
+| `/actiontimeline config` | the lane list: which spells get a lane, engine lanes, manual cooldowns, drag to reorder |
+| `/actiontimeline options` | open the settings (also under Options > AddOns) |
 | `/actiontimeline test` | toggle test mode: fake swings, casts and cooldowns on a running clock |
 | `/actiontimeline test effects` | replay the swing effects (parry, early landing, reset, swap, overdue, retry) |
 | `/actiontimeline test off` | stop test mode |
@@ -49,6 +51,9 @@ invents what it cannot see:
 | `/actiontimeline debug` | each spell lane's live state and the last casts (for bug reports) |
 | `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |
+
+Move the timeline in **Edit Mode**: open Edit Mode and drag the
+"4everActionTimeline" handle.
 
 ## Requirements
 

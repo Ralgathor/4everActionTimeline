@@ -34,4 +34,7 @@ Calibration.lua
 Gcd.lua
 Spells.lua
 Casts.lua
+Options.lua
+LaneWindow.lua
+EditMode.lua
 TestMode.lua

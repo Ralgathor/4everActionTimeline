@@ -45,6 +45,44 @@ function Spellbook.Resolve(baseID)
 	return nil, name
 end
 
+local GetNumSkillLines = C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines
+local GetSkillLineInfo = C_SpellBook and C_SpellBook.GetSpellBookSkillLineInfo
+local GetBookItemInfo = C_SpellBook and C_SpellBook.GetSpellBookItemInfo
+local BANK_PLAYER = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+local ITEM_SPELL = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell or 1
+
+-- Every active spell in the class tabs (not General, not passive), one per
+-- name: { id (the lowest rank ID seen), name }, for the lane window.
+function Spellbook.ClassSpells()
+	local lowest = {}
+	if GetNumSkillLines and GetSkillLineInfo and GetBookItemInfo then
+		for line = 2, GetNumSkillLines() or 0 do -- line 1 is General
+			local info = GetSkillLineInfo(line)
+			if info and not info.isGuild and not info.shouldHide then
+				local first = (info.itemIndexOffset or 0) + 1
+				for slot = first, first + (info.numSpellBookItems or 0) - 1 do
+					local item = GetBookItemInfo(slot, BANK_PLAYER)
+					local id = item and item.spellID
+					if id and not IsSecret(id) and item.itemType == ITEM_SPELL and not item.isPassive then
+						local name = Spellbook.Name(id)
+						if name and (not lowest[name] or id < lowest[name]) then
+							lowest[name] = id
+						end
+					end
+				end
+			end
+		end
+	end
+	local spells = {}
+	for name, id in pairs(lowest) do
+		spells[#spells + 1] = { id = id, name = name }
+	end
+	table.sort(spells, function(a, b)
+		return a.name < b.name
+	end)
+	return spells
+end
+
 -- A spell from a slash argument: an ID, or a spell name the client knows.
 -- Returns its ID and name, or nil.
 function Spellbook.FromArgument(text)

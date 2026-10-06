@@ -505,7 +505,9 @@ function Renderer:UpdateVisibility()
 			show = Addon.inCombat and true or false
 		end
 	end
-	frame:SetShown(show and #Layout:Lanes() > 0)
+	-- With no lanes there is nothing to show - except in Edit Mode, where the
+	-- frame must be there to be placed.
+	frame:SetShown(Addon.editMode or (show and #Layout:Lanes() > 0))
 end
 
 local function Sweep()

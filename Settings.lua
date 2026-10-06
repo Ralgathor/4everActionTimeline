@@ -130,9 +130,11 @@ local function Resolve(self, from, id, key)
 	return nil
 end
 
--- A per-spell lane value: enabled (boolean) or override (seconds, or nil).
-function Addon:GetLaneValue(id, key)
-	return Resolve(self, "player", id, key)
+-- A per-spell lane value: enabled (boolean) or override (seconds, or nil),
+-- as layer `from` sees it: "player" (the default) is what this character
+-- gets, "class" what the class layer and the shipped defaults give.
+function Addon:GetLaneValue(id, key, from)
+	return Resolve(self, from or "player", id, key)
 end
 
 local laneSetListeners = {}
@@ -140,6 +142,38 @@ local laneSetListeners = {}
 -- fn runs whenever the lane set changes.
 function Addon:OnLaneSetChanged(fn)
 	laneSetListeners[#laneSetListeners + 1] = fn
+end
+
+local function Notify()
+	for _, fn in ipairs(laneSetListeners) do
+		fn()
+	end
+end
+
+-- True when the layer itself stores anything for the spell.
+function Addon:LayerHasSpell(layerName, id)
+	local layer = Layer(self, layerName)
+	local spells = layer and layer.lanes and layer.lanes.spells
+	return spells and spells[id] ~= nil
+end
+
+-- Stores a layer's lane order (a player order replaces the class order whole).
+function Addon:SetLaneOrder(layerName, order)
+	local layer = Layer(self, layerName)
+	if not layer then
+		return
+	end
+	layer.lanes = layer.lanes or {}
+	layer.lanes.order = order
+	Notify()
+end
+
+-- "Reset to class": deletes this character's lane settings and order.
+function Addon:ResetPlayerLanes()
+	if self.playerLayer then
+		self.playerLayer.lanes = nil
+		Notify()
+	end
 end
 
 -- Sets a per-spell value at the "class" or "player" layer; a value equal to
@@ -160,9 +194,7 @@ function Addon:SetLaneValue(layerName, id, key, value)
 	local spell = spells[id] or {}
 	spell[key] = value
 	spells[id] = next(spell) and spell or nil
-	for _, fn in ipairs(laneSetListeners) do
-		fn()
-	end
+	Notify()
 end
 
 -- The lane set's base ID for a spell argument (an ID or a name, any rank): a
@@ -173,23 +205,36 @@ function Addon:LaneBaseFor(text)
 	if not id then
 		return nil
 	end
-	for _, list in ipairs({ self:ClassInfo().starter, self:LaneOrder() }) do
+	return self:LaneBasesByName()[name] or id, name
+end
+
+-- Spell name -> lane base ID for the class's curated and tracked spells
+-- (the first match wins: starter set, then `order`, default the lane
+-- order), so any rank of a curated spell keeps its curated base ID.
+function Addon:LaneBasesByName(order)
+	local bases = {}
+	for _, list in ipairs({ self:ClassInfo().starter, order or self:LaneOrder() }) do
 		for _, base in ipairs(list) do
-			if base == id or self.Spellbook.Name(base) == name then
-				return base, name
+			local name = self.Spellbook.Name(base)
+			if name and not bases[name] then
+				bases[name] = base
 			end
 		end
 	end
-	return id, name
+	return bases
 end
 
--- The lane order: the player's order, else the class's, else the starter
--- set's; a spell enabled at any layer but missing from it is appended (a
--- class-layer addition reaches a character with its own order).
-function Addon:LaneOrder()
-	local playerLanes, classLanes = self.playerLayer and self.playerLayer.lanes, self.classLayer and self.classLayer.lanes
-	local base = (playerLanes and playerLanes.order) or (classLanes and classLanes.order) or self:ClassInfo().starter
-	local order, seen = {}, {}
+-- The lane order as seen from layer `from` ("player", the default, or
+-- "class"): the player's order, else the class's, else the starter set's; a
+-- spell stored at a walked layer but missing from it is appended. The second
+-- return is the set of class-layer spells appended to the player's own
+-- order - flagged "new" in the lane window.
+function Addon:LaneOrder(from)
+	local playerLanes = from ~= "class" and self.playerLayer and self.playerLayer.lanes or nil
+	local classLanes = self.classLayer and self.classLayer.lanes
+	local own = playerLanes and playerLanes.order
+	local base = own or (classLanes and classLanes.order) or self:ClassInfo().starter
+	local order, seen, new = {}, {}, {}
 	for _, id in ipairs(base) do
 		if not seen[id] then
 			order[#order + 1], seen[id] = id, true
@@ -200,6 +245,7 @@ function Addon:LaneOrder()
 		for id in pairs(lanes.spells or EMPTY) do
 			if not seen[id] then
 				extra[#extra + 1], seen[id] = id, true
+				new[id] = own and lanes == classLanes or nil
 			end
 		end
 	end
@@ -207,5 +253,5 @@ function Addon:LaneOrder()
 	for _, id in ipairs(extra) do
 		order[#order + 1] = id
 	end
-	return order
+	return order, new
 end

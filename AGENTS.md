@@ -11,11 +11,10 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M5, sink lanes** — the event store, the renderer (Flat skin,
-horizontal), test mode, and live hand, GCD, cast and spell lanes with
-calibration and the curated class data, plus the opt-in engine-drawn sink
-lanes. The settings surfaces arrive in M6, the Native skin and the
-orientations in M7.
+Status: **M6, settings** — the event store, the renderer (Flat skin,
+horizontal), test mode, live hand, GCD, cast, spell and engine-drawn sink
+lanes, the Settings category, the lane window and Edit Mode placement.
+The Native skin and the orientations arrive in M7.
 The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
 verdicts live in `Probes.lua`.
 
@@ -77,6 +76,13 @@ addons are independent (ADR-0003).
   overdue, linked cooldowns, resets, the calibration report.
 - `Casts.lua` — the cast lane: completions, the in-flight now-line icon and
   completion mark, pushback, stopped casts, channels.
+- `Options.lua` — the Settings category: proxies over `GetSetting` /
+  `SetSetting` (checkbox, slider, dropdown only; dropdown options are a
+  function).
+- `LaneWindow.lua` — `/actiontimeline config`: the lane list (enable,
+  engine lane, manual cooldown, drag order) per layer.
+- `EditMode.lua` — placement in Edit Mode (EventRegistry callbacks, own
+  drag handle, snap, position at the player layer).
 - `TestMode.lua` — `/actiontimeline test`: fake events and test lanes;
   `test effects`: the swing-event replay (seam 1b).
 - `.pkgmeta` — BigWigs packager externals (LibStub, CallbackHandler-1.0, the
