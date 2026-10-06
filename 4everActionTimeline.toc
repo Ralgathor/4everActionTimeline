@@ -1,0 +1,12 @@
+## Interface: 16001
+## Version: 0.0.0
+## Title: 4everActionTimeline
+## Notes: A live action timeline for WoW: Forever - swings, casts, the GCD and cooldowns laid out around a now line, via LibClassicSwingTimerAPI.
+## Author: Ralgathor
+## SavedVariables: FourEverActionTimelineDB
+## OptionalDeps: LibClassicSwingTimerAPI
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibClassicSwingTimerAPI\LibClassicSwingTimerAPI.lua
+Core.lua

@@ -1,0 +1,24 @@
+# Archives
+*.zip
+*.tar.gz
+*.7z
+
+/ref/**
+.agents/**
+.vibe/**
+.claude/**
+
+# BigWigs packaging
+/Libs/**
+.release/**
+
+# Lua artifacts
+luac.out
+*.luac
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
