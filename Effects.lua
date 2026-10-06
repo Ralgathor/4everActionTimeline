@@ -14,7 +14,7 @@ local Util, Layout = Addon.Util, Addon.Layout
 local GetTime, GetCVar = GetTime, GetCVar
 local max, min, sin, pi, remove = math.max, math.min, math.sin, math.pi, table.remove
 
-local WHITE = [[Interface\Buttons\WHITE8X8]]
+local WHITE = Util.WHITE
 local POP_ATLAS = "cast_standard_pipglow" -- shared with 4everSwingTimer
 local POP_TIME = 0.3
 local POP_GROWTH = 0.4

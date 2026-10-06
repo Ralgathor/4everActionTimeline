@@ -11,10 +11,11 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M4, spell lanes** — the event store, the renderer (Flat skin,
+Status: **M5, sink lanes** — the event store, the renderer (Flat skin,
 horizontal), test mode, and live hand, GCD, cast and spell lanes with
-calibration and the curated class data. The engine-drawn sink lanes arrive
-in M5, the settings surfaces in M6.
+calibration and the curated class data, plus the opt-in engine-drawn sink
+lanes. The settings surfaces arrive in M6, the Native skin and the
+orientations in M7.
 The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
 verdicts live in `Probes.lua`.
 
@@ -55,6 +56,9 @@ addons are independent (ADR-0003).
   descriptor contract every lane's `Collect` follows.
 - `Effects.lua` — transient effects: reposition pop, correction streak,
   across-lane shake.
+- `Sinks.lua` — the engine-drawn sink lanes: a StatusBar fed the secret
+  remaining cooldown every frame, the icon a leaf on the fill's edge.
+  Never read its geometry back.
 - `Renderer.lua` — the timeline frame, pooled widgets, the OnUpdate pass,
   visibility and the expiry sweep.
 - `Classify.lua` — swing-event classification copied from 4everSwingTimer

@@ -18,9 +18,9 @@ local GetTime = GetTime
 local debugprofilestop = debugprofilestop
 local ipairs, max, min, random, wipe = ipairs, math.max, math.min, math.random, wipe
 
-local WHITE = [[Interface\Buttons\WHITE8X8]]
+local WHITE = Util.WHITE
 local QUESTION_MARK = 134400 -- INV_Misc_QuestionMark
-local ICON_CROP = 0.08
+local ICON_CROP = Util.ICON_CROP
 local SAFETY_REBUILD = 1.0
 local SWEEP_INTERVAL = 0.5
 -- The store keeps entries this long past the past edge (research: past + 2 s).
@@ -388,6 +388,7 @@ local function ApplyLayout()
 	nowLine:SetSize(2, max(Layout.height, 1))
 	layoutDirty = false
 	allDirty = true
+	Addon.Sinks:Layout()
 end
 
 local function RebuildLane(lane, now)
@@ -460,6 +461,7 @@ local function OnUpdate()
 			PlaceBar(used[j], now)
 		end
 	end
+	Addon.Sinks:Place()
 	Effects:Place(now)
 	if start then
 		Record(laidOut and perfLayout or rebuilt and perfRebuild or perfSteady, debugprofilestop() - start)
@@ -588,7 +590,8 @@ function Renderer:Init()
 	end
 	frame:Hide()
 	-- Draw order: lane bands and tracks, then bars and ticks, then the now
-	-- line, then icon marks, then transient effects on top.
+	-- line, then icon marks, then the engine-drawn sink icons, then
+	-- transient effects on top.
 	local level = frame:GetFrameLevel()
 	barLayer = CreateFrame("Frame", nil, frame)
 	barLayer:SetAllPoints()
@@ -599,9 +602,13 @@ function Renderer:Init()
 	markLayer = CreateFrame("Frame", nil, frame)
 	markLayer:SetAllPoints()
 	markLayer:SetFrameLevel(level + 4)
+	local sinkLayer = CreateFrame("Frame", nil, frame)
+	sinkLayer:SetAllPoints()
+	sinkLayer:SetFrameLevel(level + 5)
+	Addon.Sinks:Init(sinkLayer)
 	local effectsLayer = CreateFrame("Frame", nil, frame)
 	effectsLayer:SetAllPoints()
-	effectsLayer:SetFrameLevel(level + 5)
+	effectsLayer:SetFrameLevel(level + 6)
 	Effects:Init(effectsLayer)
 	nowLine = nowLayer:CreateTexture(nil, "OVERLAY")
 	nowLine:SetColorTexture(NOW_COLOR[1], NOW_COLOR[2], NOW_COLOR[3], NOW_COLOR[4])

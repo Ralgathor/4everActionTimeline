@@ -97,7 +97,11 @@ local function Collect(lane, now, out)
 	Layout.CollectHappened(lane, now, out)
 	local state = lane.state
 	if state.phase == "cooling" and state.readyAt then
-		out[#out + 1] = { t = state.readyAt, icon = lane.icon, predicted = true, desaturated = not state.exact }
+		-- With its sink on, the engine-drawn icon is this spell's only future
+		-- mark: no calibrated guess racing the truth.
+		if not lane.sink then
+			out[#out + 1] = { t = state.readyAt, icon = lane.icon, predicted = true, desaturated = not state.exact }
+		end
 	elseif state.phase == "cooling" then
 		out[#out + 1] = { atNow = true, icon = lane.icon, desaturated = true } -- the unknown-cooldown mark
 	else
@@ -317,8 +321,8 @@ end
 -- Rebuilds the lanes from the lane set: enabled, known spells in lane order,
 -- each resolved to its known rank.
 function Spells:Rebuild()
-	local wanted = {}
-	for index, base in ipairs(Addon:LaneOrder()) do
+	local wanted, order = {}, Addon:LaneOrder()
+	for index, base in ipairs(order) do
 		if Addon:GetLaneValue(base, "enabled") then
 			local id, name = Spellbook.Resolve(base)
 			if id then
@@ -365,6 +369,23 @@ function Spells:Rebuild()
 			seedLinks[base] = group
 		end
 	end
+	-- The engine-drawn sink lanes: opted-in spell lanes, in lane order, at
+	-- most Sinks.MAX.
+	local sinks = {}
+	for _, base in ipairs(order) do
+		local lane = lanes[base]
+		if lane then
+			local sink = (#sinks < Addon.Sinks.MAX and Addon:GetLaneValue(base, "sink")) and true or false
+			if sink ~= (lane.sink or false) then
+				lane.sink = sink
+				Renderer:MarkDirty(lane)
+			end
+			if sink then
+				sinks[#sinks + 1] = lane
+			end
+		end
+	end
+	Addon.Sinks:Sync(sinks)
 	if changed then
 		Renderer:UpdateVisibility()
 	end

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M5 engine-drawn sink lanes: opt-in per spell (up to 6, in lane order,
+  grouped at the bottom), a transparent StatusBar fed the secret remaining
+  cooldown every frame with the spell icon on its leading edge (far edge
+  while longer than the window, at rest on the now line at zero), the
+  optional engine countdown, and the spell lane dropping its calibrated
+  prediction while its sink is on. `/actiontimeline sink`.
 - M4 spell lanes. Curated data for all nine classes (starter sets, GCD
   references, linked and delayed-start cooldowns, resets, stance and form
   requirements); the lane set resolved through shipped defaults, class and

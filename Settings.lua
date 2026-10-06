@@ -28,6 +28,8 @@ local DEFAULTS = {
 	-- both measured), "1.5", "1.0" or "custom" (gcdCustom, 0.5-2.0 s).
 	gcdOverride = "auto",
 	gcdCustom = 1.5,
+	-- The sink icon shows the engine's own countdown (the true remaining time).
+	sinkCountdown = false,
 }
 Addon.DEFAULTS = DEFAULTS
 
@@ -147,7 +149,9 @@ function Addon:SetLaneValue(layerName, id, key, value)
 	if not layer then
 		return
 	end
-	if value == Resolve(self, layerName == "player" and "class" or nil, id, key) then
+	-- Off and unset are the same for a flag (sink has no shipped value).
+	local below = Resolve(self, layerName == "player" and "class" or nil, id, key)
+	if value == below or not (value or below) then
 		value = nil
 	end
 	layer.lanes = layer.lanes or {}

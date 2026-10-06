@@ -25,6 +25,7 @@ Data\Shaman.lua
 Store.lua
 Layout.lua
 Effects.lua
+Sinks.lua
 Renderer.lua
 Classify.lua
 Hands.lua

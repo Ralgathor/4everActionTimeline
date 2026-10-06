@@ -43,6 +43,8 @@ invents what it cannot see:
 | `/actiontimeline show combat \| always \| active` | when the timeline shows: in combat (default), always, or while anything is on it |
 | `/actiontimeline lane <spell> on \| off` | track or stop tracking a spell's cooldown (for your class) |
 | `/actiontimeline override <spell> <seconds \| clear>` | set this character's cooldown for a spell by hand |
+| `/actiontimeline sink <spell> on \| off` | an engine-drawn lane for a spell: its true remaining cooldown, placed by the game itself (up to 6) |
+| `/actiontimeline sink countdown on \| off` | show the engine's own countdown on those icons (needs the game's "show cooldown numbers" option) |
 | `/actiontimeline calibration [wipe]` | what each tracked spell's cooldown is known as (or forget them all) |
 | `/actiontimeline debug` | each spell lane's live state and the last casts (for bug reports) |
 | `/actiontimeline perf` | renderer frame time (average and worst) |

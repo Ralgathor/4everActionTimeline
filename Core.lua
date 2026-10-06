@@ -142,6 +142,10 @@ end
 
 local VISIBILITY_MODES = { combat = true, always = true, active = true }
 
+local function OnOff(value)
+	return value == "on" or value == "off"
+end
+
 -- "<spell> <value>": the spell's lane base ID, its name and the value
 -- (lower-cased), or nil after printing the usage when either is invalid.
 local function SpellCommand(rest, usage, valid)
@@ -158,12 +162,28 @@ end
 -- /actiontimeline lane <spell> on|off: enables a spell lane for the class
 -- (shared by its characters) until the lane window exists (M6).
 local function LaneCommand(rest)
-	local base, name, value = SpellCommand(rest, "/actiontimeline lane <spell name or ID> on|off", function(v)
-		return v == "on" or v == "off"
-	end)
+	local base, name, value = SpellCommand(rest, "/actiontimeline lane <spell name or ID> on|off", OnOff)
 	if base then
 		Addon:SetLaneValue("class", base, "enabled", value == "on")
 		Addon:Print(format("%s lane %s for your class.", name, value == "on" and "enabled" or "disabled"))
+	end
+end
+
+-- /actiontimeline sink <spell> on|off: the spell's engine-drawn lane, for the
+-- class; /actiontimeline sink countdown on|off: its true countdown text.
+local function SinkCommand(rest)
+	local toggle = rest:lower():match("^countdown%s+(%S+)$")
+	if toggle == "on" or toggle == "off" then
+		Addon:SetSetting("sinkCountdown", toggle == "on")
+		Addon:Print("sink countdown " .. toggle .. ".")
+		return
+	end
+	local base, name, value = SpellCommand(rest, "/actiontimeline sink <spell name or ID> on|off  or  sink countdown on|off", OnOff)
+	if base then
+		local on = value == "on"
+		Addon:SetLaneValue("class", base, "sink", on)
+		Addon:Print(format("%s engine-drawn lane %s for your class%s.", name, value,
+			on and format(" (shown while its spell lane is; at most %d, in lane order)", Addon.Sinks.MAX) or ""))
 	end
 end
 
@@ -195,7 +215,7 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], lane <spell> on | off, override <spell> <seconds | clear>, calibration [wipe], debug, perf, help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], show [combat | always | active], lane <spell> on | off, override <spell> <seconds | clear>, sink <spell> on | off, sink countdown on | off, calibration [wipe], debug, perf, help")
 	elseif not Addon.lib then
 		Addon:Print("inert (library missing or too old): only status and help are available.")
 	elseif command == "test" then
@@ -230,6 +250,8 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 		LaneCommand(rest)
 	elseif command == "override" then
 		OverrideCommand(rest)
+	elseif command == "sink" then
+		SinkCommand(rest)
 	elseif command == "show" then
 		-- The visibility setting until the Settings panel exists (M6).
 		rest = rest:lower()

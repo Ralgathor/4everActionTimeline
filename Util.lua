@@ -2,7 +2,10 @@
 -- counters, widget pools, and the atlas guard.
 
 local Addon = FourEverActionTimeline
-local Util = {}
+local Util = {
+	WHITE = [=[Interface\Buttons\WHITE8X8]=], -- the flat texture for lines, bars, borders
+	ICON_CROP = 0.08, -- trims a spell icon's built-in border
+}
 Addon.Util = Util
 
 local issecretvalue = issecretvalue
