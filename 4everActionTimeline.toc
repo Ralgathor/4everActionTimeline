@@ -15,5 +15,8 @@ Util.lua
 Settings.lua
 Store.lua
 Layout.lua
+Effects.lua
 Renderer.lua
+Classify.lua
+Hands.lua
 TestMode.lua

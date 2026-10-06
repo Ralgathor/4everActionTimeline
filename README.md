@@ -3,9 +3,8 @@
 A live action timeline for **WoW: Forever**: what you just did and what is
 about to happen, laid out around a now line.
 
-> **Status: early build.** The timeline draws in test mode
-> (`/actiontimeline test`); live swing, cast, GCD and spell lanes arrive in
-> the next builds.
+> **Status: early build.** Live swing lanes (main hand, off hand, ranged);
+> cast, GCD and spell lanes arrive in the next builds.
 
 ## What it will show
 
@@ -37,6 +36,7 @@ invents what it cannot see:
 |---|---|
 | `/actiontimeline` | status (version, library check) |
 | `/actiontimeline test` | toggle test mode: fake swings, casts and cooldowns on a running clock |
+| `/actiontimeline test effects` | replay the swing effects (parry, early landing, reset, swap, overdue, retry) |
 | `/actiontimeline test off` | stop test mode |
 | `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |

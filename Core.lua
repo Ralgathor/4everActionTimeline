@@ -105,6 +105,7 @@ function Addon:OnEnable()
 	frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 	self.Renderer:Init()
+	self.Hands:Init(lib)
 end
 
 function Addon:Print(message)
@@ -138,19 +139,28 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 	local command, rest = strtrim(msg or ""):lower():match("^(%S*)%s*(.-)$")
 	if command == "" or command == "status" then
 		if Addon.lib then
-			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live lanes arrive in later builds; |cffdddddd/actiontimeline test|r shows the timeline with fake events.")
+			Addon:Print("v" .. Addon.version .. " - library MINOR " .. Addon.libMinor .. ". Live: swing lanes. |cffdddddd/actiontimeline test|r shows every mark with fake events; |cffdddddd/actiontimeline test effects|r replays the swing effects.")
+			local keys, shown = Addon.Renderer:Status()
+			Addon:Print(format("lanes: %s; visibility %s, %s, frame %s.",
+				#keys > 0 and table.concat(keys, ", ") or "none",
+				Addon:GetSetting("visibility"), Addon.inCombat and "in combat" or "out of combat",
+				shown and "shown" or "hidden"))
 		else
 			Addon:Print("v" .. Addon.version .. " - inert (library missing or too old).")
 		end
 	elseif command == "help" then
-		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [off], perf, help")
+		Addon:Print("Commands: |cffdddddd/actiontimeline|r (status), test [effects | off], perf, help")
 	elseif not Addon.lib then
 		Addon:Print("inert (library missing or too old): only status and help are available.")
 	elseif command == "test" then
-		if rest == "off" or (rest == "" and Addon.TestMode:IsRunning()) then
-			Addon.TestMode:Stop()
+		local TestMode = Addon.TestMode
+		if rest == "effects" then
+			TestMode:StartEffects()
+		elseif rest == "off" or (rest == "" and TestMode:IsRunning()) then
+			TestMode:Stop()
+			TestMode:StopEffects()
 		else
-			Addon.TestMode:Start()
+			TestMode:Start()
 		end
 	elseif command == "perf" then
 		PrintPerf()

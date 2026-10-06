@@ -11,7 +11,8 @@
 -- convergence). The frame never takes the mouse.
 
 local Addon = FourEverActionTimeline
-local Util, Layout, Store = Addon.Util, Addon.Layout, Addon.Store
+local Util, Layout, Store, Effects = Addon.Util, Addon.Layout, Addon.Store, Addon.Effects
+local ShakeOffset = Effects.ShakeOffset
 
 local GetTime = GetTime
 local debugprofilestop = debugprofilestop
@@ -30,10 +31,12 @@ local BAR_HEIGHT_RATIO = 0.4
 local CHEVRON_ATLAS = "uitools-icon-chevron-right" -- probe 14
 local TRACK_COLOR = { 1, 1, 1, 0.18 }
 local NOW_COLOR = { 1, 1, 1, 0.6 }
+-- Red (cast failure, clip) and amber (the held ranged hand) are the effect
+-- colors, so a border always matches its pop.
 local BORDER_COLORS = {
 	default = { 0, 0, 0, 1 },
-	red = { 1.0, 0.25, 0.20, 1 }, -- 4everSwingTimer CLIP_TINT: cast failure
-	amber = { 1.0, 0.60, 0.10, 1 }, -- DELAY_TINT: the held ranged hand
+	red = { Effects.RED[1], Effects.RED[2], Effects.RED[3], 1 },
+	amber = { Effects.AMBER[1], Effects.AMBER[2], Effects.AMBER[3], 1 },
 }
 -- Blizzard's action-bar usability tints (VISUAL.md, State tints).
 local TINTS = {
@@ -109,7 +112,7 @@ local function ResetMark(mark)
 	mark:Hide()
 	mark:ClearAllPoints()
 	mark.chevron:Hide()
-	mark.desc, mark.laneFrame, mark.pinned, mark.visible, mark.x = nil, nil, nil, nil, nil
+	mark.desc, mark.laneFrame, mark.pinned, mark.visible, mark.x, mark.y = nil, nil, nil, nil, nil, nil
 end
 
 local function CreateTick()
@@ -260,11 +263,12 @@ local function SetVisible(widget, visible)
 end
 
 -- The anchor name never changes ("CENTER" on the lane's LEFT), so moving a
--- widget needs no ClearAllPoints (the anchor rule); an unmoved one is skipped.
-local function Anchor(widget, x)
-	if widget.x ~= x then
-		widget.x = x
-		widget:SetPoint("CENTER", widget.laneFrame, "LEFT", x, 0)
+-- widget needs no ClearAllPoints (the anchor rule); an unmoved one is
+-- skipped. y is the across-lane shake offset, never a time offset.
+local function Anchor(widget, x, y)
+	if widget.x ~= x or widget.y ~= y then
+		widget.x, widget.y = x, y
+		widget:SetPoint("CENTER", widget.laneFrame, "LEFT", x, y)
 	end
 end
 
@@ -273,13 +277,12 @@ end
 -- past: an overdue one pins at the now line, and a chain derived from it
 -- follows. Past the far edge a predicted mark clamps (the edge clamp) and a
 -- chain mark hides.
+-- An atNow mark sits at a fixed offset from the now line (`after`, 0 by
+-- default): the idle family on it, a paused hand's frozen marks ahead of it.
 local function ResolveTime(desc, now)
-	if desc.atNow then
-		return now, false
-	end
 	local t, far = desc.t, Layout:FarEdge(now)
-	if desc.predicted then
-		if t < now then
+	if desc.atNow or desc.predicted then
+		if desc.atNow or t < now then
 			t = now
 		end
 		t = t + (desc.after or 0)
@@ -303,7 +306,8 @@ local function PlaceMark(mark, now)
 		SetVisible(mark, false)
 		return
 	end
-	Anchor(mark, Layout:TimeToX(t, now))
+	local shake = mark.desc.shake
+	Anchor(mark, Layout:TimeToX(t, now), shake and ShakeOffset(shake, now) or 0)
 	if mark.pinned ~= pinned then
 		mark.pinned = pinned
 		mark.chevron:SetShown(pinned)
@@ -317,7 +321,7 @@ local function PlaceTick(tick, now)
 		SetVisible(tick, false)
 		return
 	end
-	Anchor(tick, Layout:TimeToX(t, now))
+	Anchor(tick, Layout:TimeToX(t, now), 0)
 	SetVisible(tick, true)
 end
 
@@ -456,6 +460,7 @@ local function OnUpdate()
 			PlaceBar(used[j], now)
 		end
 	end
+	Effects:Place(now)
 	if start then
 		Record(laidOut and perfLayout or rebuilt and perfRebuild or perfSteady, debugprofilestop() - start)
 	end
@@ -549,6 +554,15 @@ function Renderer:Perf()
 	return Summarize(perfSteady), Summarize(perfRebuild), Summarize(perfLayout), widgets, #lanes
 end
 
+-- The lane keys in order and whether the frame is shown, for /actiontimeline status.
+function Renderer:Status()
+	local keys = {}
+	for i, lane in ipairs(Layout:Lanes()) do
+		keys[i] = lane.key
+	end
+	return keys, frame ~= nil and frame:IsShown()
+end
+
 function Renderer:ResetPerf()
 	wipe(perfSteady)
 	wipe(perfRebuild)
@@ -568,7 +582,7 @@ function Renderer:Init()
 	end
 	frame:Hide()
 	-- Draw order: lane bands and tracks, then bars and ticks, then the now
-	-- line, then icon marks on top.
+	-- line, then icon marks, then transient effects on top.
 	local level = frame:GetFrameLevel()
 	barLayer = CreateFrame("Frame", nil, frame)
 	barLayer:SetAllPoints()
@@ -579,6 +593,10 @@ function Renderer:Init()
 	markLayer = CreateFrame("Frame", nil, frame)
 	markLayer:SetAllPoints()
 	markLayer:SetFrameLevel(level + 4)
+	local effectsLayer = CreateFrame("Frame", nil, frame)
+	effectsLayer:SetAllPoints()
+	effectsLayer:SetFrameLevel(level + 5)
+	Effects:Init(effectsLayer)
 	nowLine = nowLayer:CreateTexture(nil, "OVERLAY")
 	nowLine:SetColorTexture(NOW_COLOR[1], NOW_COLOR[2], NOW_COLOR[3], NOW_COLOR[4])
 

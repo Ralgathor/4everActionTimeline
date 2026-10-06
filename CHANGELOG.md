@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M2 hand lanes: main hand, off hand and ranged from LibClassicSwingTimerAPI
+  (landings, the next landing, the cadence chain, overdue, parked and
+  paused hands; weapon, druid-form and queued-ability icons; equipment-driven
+  presence with per-hand settings). Hand-lane effects: reposition pops
+  (teal, amber, red), correction streaks, the across-lane shake (honoring
+  ShakeStrengthUI), clip ticks, the held amber border and delay spans,
+  classified with 4everSwingTimer's rules. `/actiontimeline test effects`
+  replays the swing-event signatures.
 - M1 foundation: the event store with its secret guard (secret values are
   dropped and reported once after combat), the renderer (Flat skin,
   horizontal; pooled marks, ticks and window bars; edge clamp with

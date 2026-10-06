@@ -90,14 +90,7 @@ function mainHand:Collect(now, out)
 	Happened(self, now, out)
 	local expected = Expected(self.nextLanding)
 	out[#out + 1] = { t = expected, icon = weaponIcon, predicted = true }
-	-- The chain is anchored on the next landing; while it is overdue the
-	-- renderer derives both from the now line.
-	local horizon = now + Layout.future + SWING
-	local n = 1
-	while expected + n * SWING <= horizon do
-		out[#out + 1] = { t = expected, after = n * SWING, icon = weaponIcon, predicted = true, desaturated = true, chain = true }
-		n = n + 1
-	end
+	Layout.AppendChain(out, expected, SWING, weaponIcon, now)
 end
 
 -- ---------------------------------------------------------------------------
@@ -285,8 +278,8 @@ function TestMode:Start()
 		lane:Reset()
 		Layout:RegisterLane(lane)
 	end
-	Addon.testing = true
 	ticker = C_Timer.NewTicker(TICK, Tick)
+	TestMode:UpdateTesting()
 	Renderer:ResetPerf()
 	Renderer:UpdateVisibility()
 	Addon:Print("test mode on: fake swings, casts and cooldowns on a running clock. |cffdddddd/actiontimeline test off|r to stop.")
@@ -304,8 +297,139 @@ function TestMode:Stop()
 	Store:RemoveWhere(function(entry)
 		return entry.test
 	end)
-	Addon.testing = false
-	Renderer:UpdateVisibility()
+	TestMode:UpdateTesting()
 	Addon:Print("test mode off.")
 	Util.ReportDrops()
+end
+
+-- ---------------------------------------------------------------------------
+-- Test effects (/actiontimeline test effects): seam 1b. Replays the library's
+-- real swing-event signatures on a fake swing, through the same handlers the
+-- library callbacks reach (Hands:OnStart / OnStop), so the copied classifier
+-- and every hand-lane effect are verified outside combat - 4everSwingTimer's
+-- effect previews, on the timeline. Each step prints its name as it fires.
+-- ---------------------------------------------------------------------------
+
+local Hands = Addon.Hands
+local SPEED, RANGED_SPEED, SWAP_SPEED = 2.0, 2.8, 2.6
+local START_GAP = 0.03 -- the START that follows a STOP inside the grace
+local effectsGeneration = 0
+local effectsRunning = false
+
+local function MainHand()
+	return Hands:State("mainhand")
+end
+
+local function Ranged()
+	return Hands:State("ranged")
+end
+
+local function UntilLanding(state)
+	return (state.expiration or GetTime()) - GetTime()
+end
+
+-- Runs fn after delay unless test effects stopped meanwhile.
+local function Later(delay, fn)
+	local generation = effectsGeneration
+	C_Timer.After(max(delay, 0), function()
+		if generation == effectsGeneration then
+			fn()
+		end
+	end)
+end
+
+-- The signatures, as the library fires them.
+local function Start(hand, speed)
+	Hands:OnStart(hand, speed, GetTime() + speed, false)
+end
+
+-- A natural landing: the STOP and START pair at the expiry.
+local function Land(hand, speed)
+	Hands:OnStop(hand)
+	Start(hand, speed)
+end
+
+-- An in-flight STOP, then a START inside the grace (early landing or swap).
+local function StopThenStart(hand, speed)
+	Hands:OnStop(hand)
+	Later(START_GAP, function()
+		Start(hand, speed)
+	end)
+end
+
+-- A mid-swing UPDATE moving the landing by delta seconds.
+local function Shift(hand, delta)
+	local state = Hands:State(hand)
+	Hands:OnStart(hand, state.speed, state.expiration + delta, true)
+end
+
+-- The movement-cancelled Auto Shot re-attempted ~0.5 s ahead.
+local function Retry()
+	Hands:OnStart("ranged", RANGED_SPEED, GetTime() + 0.5, true)
+end
+
+-- Each step: its name, its wait (seconds, or a function computing it from
+-- the swing state when the previous step ran), and its signature.
+local EFFECT_STEPS = {
+	{ "main hand swinging", 0, function() Start("mainhand", SPEED) end },
+	{ "parry haste: teal pop and streak, the landing jumps earlier", 0.8, function() Shift("mainhand", -0.6) end },
+	{ "landing", function() return UntilLanding(MainHand()) end, function() Land("mainhand", SPEED) end },
+	{ "early landing: the happened mark lands early, teal", 1.0, function() StopThenStart("mainhand", SPEED) end },
+	{ "cast reset: red pop, shake, streak, clip tick", 1.0, function() Start("mainhand", SPEED) end },
+	{ "weapon swap: red, clip tick at the swap", 1.0, function() StopThenStart("mainhand", SWAP_SPEED) end },
+	{ "overdue: the next landing pins on the now line", START_GAP + SWAP_SPEED + 0.05, function() end },
+	{ "late landing (no pop: nothing was corrected)", 0.6, function() Land("mainhand", SPEED) end },
+	{ "cut short: the hand just parks", 1.0, function() Hands:OnStop("mainhand") end },
+	{ "ranged swinging", 0.8, function() Start("ranged", RANGED_SPEED) end },
+	{ "ranged dynamic haste: teal, the shot jumps earlier", 1.0, function() Shift("ranged", -0.8) end },
+	{ "shot fired", function() return UntilLanding(Ranged()) end, function() Land("ranged", RANGED_SPEED) end },
+	{ "movement retry: amber pop once, amber border while held", function() return UntilLanding(Ranged()) - 0.1 end, Retry },
+	{ "retry again: streak only", 0.45, Retry },
+	{ "retry again: streak only", 0.45, Retry },
+	{ "shot fired: amber delay span records the time lost", function() return UntilLanding(Ranged()) end, function() Land("ranged", RANGED_SPEED) end },
+}
+local EFFECTS_TAIL = 3.0 -- seconds left to watch the last step scroll
+
+local function RunStep(index)
+	local step = EFFECT_STEPS[index]
+	if not step then
+		Later(EFFECTS_TAIL, function()
+			TestMode:StopEffects()
+		end)
+		return
+	end
+	local wait = step[2]
+	Later(type(wait) == "function" and wait() or wait, function()
+		Addon:Print("effects: " .. step[1])
+		step[3]()
+		RunStep(index + 1)
+	end)
+end
+
+function TestMode:UpdateTesting()
+	Addon.testing = ticker ~= nil or effectsRunning
+	Renderer:UpdateVisibility()
+end
+
+function TestMode:StartEffects()
+	if effectsRunning then
+		return
+	end
+	effectsRunning = true
+	effectsGeneration = effectsGeneration + 1
+	Hands:SetTesting(true)
+	self:UpdateTesting()
+	Addon:Print("test effects: replaying swing-event signatures on the main-hand and ranged lanes (out of combat).")
+	RunStep(1)
+end
+
+function TestMode:StopEffects()
+	if not effectsRunning then
+		return
+	end
+	effectsRunning = false
+	effectsGeneration = effectsGeneration + 1
+	Hands:SetTesting(false)
+	self:UpdateTesting()
+	Addon:Print("test effects done.")
 end

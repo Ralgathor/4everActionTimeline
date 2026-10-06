@@ -16,7 +16,9 @@
 --   after      offset for cadence-chain marks (derived from now while overdue)
 --   chain      a deeper cadence-chain mark: hidden past the far edge, not clamped
 --   atNow      rides the now line (ready, unusable, unknown-cooldown, parked,
---              the in-flight cast's now-line icon)
+--              the in-flight cast's now-line icon); with `after`, a fixed
+--              offset ahead of it (a paused hand's frozen marks)
+--   shake      the start time of the lane's across-lane shake (Effects:Shake)
 --   desaturated, dim, tint ("resource" | "unusable"), border ("red" | "amber")
 --   color      {r, g, b, a} for bars and ticks
 -- Happened marks come from the store through Layout.CollectHappened: an entry
@@ -102,6 +104,19 @@ end
 
 function Layout:LaneOffset(index)
 	return (index - 1) * (self.laneHeight + self.spacing)
+end
+
+-- The cadence chain after a next landing at t: equal intervals of speed,
+-- desaturated, filling the future window (one interval of slack, so a mark
+-- entering at the far edge never leaves a gap between rebuilds). Drawn from
+-- the now line while the next landing is overdue (the renderer's max(t, now)).
+function Layout.AppendChain(out, t, speed, icon, now)
+	local horizon = now + Layout.future + speed
+	local n = 1
+	while t + n * speed <= horizon do
+		out[#out + 1] = { t = t, after = n * speed, icon = icon, predicted = true, desaturated = true, chain = true }
+		n = n + 1
+	end
 end
 
 -- The default happened-mark collector: every store entry of this lane still

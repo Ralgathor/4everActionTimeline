@@ -11,8 +11,9 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M1, foundation** — the event store, the renderer (Flat skin,
-horizontal) and test mode exist; no live lane yet (hands arrive in M2).
+Status: **M2, hand lanes** — the event store, the renderer (Flat skin,
+horizontal), test mode, and live main-hand, off-hand and ranged lanes with
+their effects. Cast and GCD lanes arrive in M3.
 The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
 verdicts live in `Probes.lua`.
 
@@ -51,9 +52,16 @@ addons are independent (ADR-0003).
 - `Store.lua` — the event store; `Store:Ingest` is testing seam 1.
 - `Layout.lua` — lane registry, lane order, the time axis, and the mark
   descriptor contract every lane's `Collect` follows.
+- `Effects.lua` — transient effects: reposition pop, correction streak,
+  across-lane shake.
 - `Renderer.lua` — the timeline frame, pooled widgets, the OnUpdate pass,
   visibility and the expiry sweep.
-- `TestMode.lua` — `/actiontimeline test`: fake events and test lanes.
+- `Classify.lua` — swing-event classification copied from 4everSwingTimer
+  (marked for removal once the library reports a reason).
+- `Hands.lua` — the hand lanes: library callbacks, landings, predictions,
+  presence, icons, the queued swap, effects.
+- `TestMode.lua` — `/actiontimeline test`: fake events and test lanes;
+  `test effects`: the swing-event replay (seam 1b).
 - `.pkgmeta` — BigWigs packager externals (LibStub, CallbackHandler-1.0, the
   library) and package ignores.
 - `docs/`, `GLOSSARY.md` — design; not shipped in the package.

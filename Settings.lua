@@ -16,6 +16,10 @@ local DEFAULTS = {
 	scale = 1.0,
 	visibility = "combat", -- "combat" | "always" | "active"
 	backgroundAlpha = 0, -- a faint band behind each lane
+	-- Per-hand lane toggles; a lane also needs the weapon equipped.
+	showMainhand = true,
+	showOffhand = true,
+	showRanged = true,
 }
 Addon.DEFAULTS = DEFAULTS
 
