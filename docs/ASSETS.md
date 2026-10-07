@@ -25,7 +25,6 @@ stays, since a later build can drop one.
 | Asset | Kind | Status | Use |
 |---|---|---|---|
 | `combattimeline-line-left` / `combattimeline-line-right` | atlas | source | Per-lane track line (Encounter Timeline track view). |
-| `combattimeline-line-break-mask` | atlas (mask) | source | Breaks the track line where a mark sits. |
 | `combattimeline-cooldown-divider` | atlas | source | Now line, stretched across every lane. |
 | `combattimeline-pip` | atlas | source | Diamond at the now line's lane-start end. |
 | `combattimeline-line-icontrail` | atlas | source | Motion trail on the next predicted mark (`ADD`). |
@@ -44,7 +43,7 @@ stays, since a later build can drop one.
 | `UI-HUD-CoolDownManager-Bar` / `-Bar-BG` | atlas | source | GCD window bar fill and backing. |
 | `combattimeline-fx-pause` / `-pause-icon` | atlas | source | Overlay on a paused hand's marks. |
 | `combattimeline-fx-queued` | atlas | source | Overlay on the main-hand mark showing a queued ability. |
-| `uitools-icon-chevron-right` / `-left` | atlas | probed | Edge-clamp chevron (20×20, white, tinted to the track color). |
+| `uitools-icon-chevron-right` | atlas | probed | Edge-clamp chevron (20×20, white, tinted to the track color; turned through tex coords per orientation). |
 
 ## Both skins — feedback
 
@@ -59,6 +58,11 @@ stays, since a later build can drop one.
 | `Interface\Buttons\WHITE8X8` | path | shared | Track lines, now line, borders, Flat trail streak. |
 
 ## Candidates noted, not chosen
+
+- `combattimeline-line-break-mask` — Blizzard's track-line breaks (fixed
+  intervals, at most three masks per texture); not drawn as of M7.
+- `uitools-icon-chevron-left` — the right chevron turned through tex
+  coords covers flipped orientations.
 
 - `combattimeline-fx-highlight` / `-highlight-fx` / `-highlight-mask` —
   Blizzard's imminent-event highlight; rejected for the pop (pre-colored

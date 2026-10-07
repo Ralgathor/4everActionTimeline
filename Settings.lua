@@ -12,11 +12,15 @@ local Addon = FourEverActionTimeline
 local DEFAULTS = {
 	pastWindow = 5, -- seconds left of the now line
 	futureWindow = 5, -- seconds right of the now line
-	width = 420, -- pixels; the time scale follows from it
+	width = 420, -- pixels along the time axis; the time scale follows from it
 	laneHeight = 26, -- pixels; icons are laneHeight - 2
 	laneSpacing = 4,
 	scale = 1.0,
 	visibility = "combat", -- "combat" | "always" | "active"
+	skin = "native", -- "native" | "flat" (VISUAL.md, Skins)
+	-- "horizontal" (past left) | "horizontalFlipped" | "vertical" (past at
+	-- the bottom) | "verticalFlipped"
+	orientation = "horizontal",
 	backgroundAlpha = 0, -- a faint band behind each lane
 	-- Per-hand lane toggles; a lane also needs the weapon equipped.
 	showMainhand = true,

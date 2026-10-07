@@ -1,8 +1,13 @@
 -- 4everActionTimeline — lane registry and the time axis.
 -- Lane order is fixed by group (hands, then the GCD, then the cast lane,
 -- then spell lanes, then sink lanes - docs/SPEC.md), then by each lane's
--- `order` within its group. Every position goes through Layout:TimeToX, so
--- the orientations (M7) change one function. Horizontal only for now.
+-- `order` within its group. Every position is an offset along the time axis
+-- from the axis start (the past end, Layout:TimeToOffset) and an offset
+-- across the lane; Layout.orient turns the pair into a point for the
+-- orientation (VISUAL.md, Orientation): horizontal (past left), horizontal
+-- flipped (past right), vertical (past at the bottom), vertical flipped
+-- (past at the top). Lanes stack along the cross axis - top to bottom, or
+-- left to right when vertical - and a flip never changes the lane order.
 --
 -- A lane is a table {key, group, order, Collect(self, now, out)}, plus an
 -- optional IsActive(self, now) for "Active" visibility (a live mark while
@@ -21,6 +26,9 @@
 --              offset ahead of it (a paused hand's frozen marks)
 --   shake      the start time of the lane's across-lane shake (Effects:Shake)
 --   desaturated, dim, tint ("resource" | "unusable"), border ("red" | "amber")
+--   paused     a paused hand's frozen mark (Native: Blizzard's pause overlay)
+--   queued     the main-hand mark showing a queued ability (Native: the
+--              queued overlay)
 --   color      {r, g, b, a} for bars and ticks
 -- Happened marks come from the store through Layout.CollectHappened: an entry
 -- with a `duration` becomes a window bar, any other an icon (or tick) mark.
@@ -39,6 +47,31 @@ Layout.HAPPENED_MARGIN = 1
 
 local lanes = {}
 local declared = {}
+
+-- Per orientation: the axis start point (the past end) and end point, the
+-- sign of a time offset along its screen axis, the tex coords that turn
+-- left-to-right art to run start-to-end (Blizzard's
+-- EncounterTimelineTrackOrientationSetup translators applied to the full
+-- texture; corners UL, LL, UR, LR) and the rotation (radians) that turns
+-- right-pointing art to face the axis end.
+local ORIENTATIONS = {
+	horizontal = { start = "LEFT", finish = "RIGHT", sign = 1, vertical = false, turn = 0, texCoord = { 0, 0, 0, 1, 1, 0, 1, 1 } },
+	horizontalFlipped = { start = "RIGHT", finish = "LEFT", sign = -1, vertical = false, turn = math.pi, texCoord = { 1, 0, 1, 1, 0, 0, 0, 1 } },
+	vertical = { start = "BOTTOM", finish = "TOP", sign = 1, vertical = true, turn = math.pi / 2, texCoord = { 1, 0, 0, 0, 1, 1, 0, 1 } },
+	verticalFlipped = { start = "TOP", finish = "BOTTOM", sign = -1, vertical = true, turn = -math.pi / 2, texCoord = { 0, 0, 1, 0, 0, 1, 1, 1 } },
+}
+-- Derived: the StatusBar / gradient axis name, the lane-start edge across
+-- the axis ("TOP", or "LEFT" when vertical), the frame corners where the
+-- axis starts and ends on that edge, and the sign of the inward direction
+-- from that edge.
+for _, o in pairs(ORIENTATIONS) do
+	o.axis = o.vertical and "VERTICAL" or "HORIZONTAL"
+	o.crossStart = o.vertical and "LEFT" or "TOP"
+	o.corner = o.vertical and o.start .. "LEFT" or "TOP" .. o.start
+	o.cornerFinish = o.vertical and o.finish .. "LEFT" or "TOP" .. o.finish
+	o.crossSign = o.vertical and 1 or -1
+end
+Layout.orient = ORIENTATIONS.horizontal
 
 local function LaneOrder(a, b)
 	local ga, gb = GROUP_ORDER[a.group], GROUP_ORDER[b.group]
@@ -107,6 +140,12 @@ function Layout:Compute()
 	local laneHeight = Addon:GetSetting("laneHeight")
 	local iconSize = laneHeight - 2
 	self.past, self.future = past, future
+	self.orient = ORIENTATIONS[Addon:GetSetting("orientation")] or ORIENTATIONS.horizontal
+	self.skin = Addon:GetSetting("skin")
+	-- Widgets compare this to re-apply what the skin or orientation decides.
+	self.style = self.skin .. ":" .. Addon:GetSetting("orientation")
+	-- The length along the time axis (the "width" setting, whatever the
+	-- orientation).
 	self.width = Addon:GetSetting("width")
 	self.laneHeight, self.spacing = laneHeight, Addon:GetSetting("laneSpacing")
 	self.iconSize = iconSize
@@ -117,12 +156,57 @@ function Layout:Compute()
 	self.padEnd = iconSize / 2 + self.chevronSize + 2
 	self.pxPerSec = (self.width - self.padStart - self.padEnd) / (past + future)
 	self.nowX = self.padStart + past * self.pxPerSec
-	self.height = #lanes * laneHeight + max(#lanes - 1, 0) * self.spacing
+	-- The extent across the lanes, and the frame's: Native art that reaches
+	-- past the outer lanes (the icon overlay, the pip) gets a pad each side.
+	self.crossPad = Addon.Skin.CrossPad(iconSize)
+	self.lanesExtent = #lanes * laneHeight + max(#lanes - 1, 0) * self.spacing
+	self.height = self.lanesExtent + 2 * self.crossPad
 end
 
--- Offset along the time axis from the lane's start edge.
-function Layout:TimeToX(t, now)
+-- Offset along the time axis from the axis start (the past end).
+function Layout:TimeToOffset(t, now)
 	return self.nowX + (t - now) * self.pxPerSec
+end
+
+-- The point offsets for an offset along the axis and one across the lane.
+function Layout:Offsets(along, across)
+	local orient = self.orient
+	if orient.vertical then
+		return across, along * orient.sign
+	end
+	return along * orient.sign, across
+end
+
+-- The point offsets for a lane's offset across the axis (lanes stack top to
+-- bottom, or left to right when vertical).
+function Layout:CrossOffsets(offset)
+	if self.orient.vertical then
+		return offset, 0
+	end
+	return 0, -offset
+end
+
+-- A size given along and across the axis, as width and height.
+function Layout:Extents(along, across)
+	if self.orient.vertical then
+		return across, along
+	end
+	return along, across
+end
+
+-- Anchors a region's start edge (its past end) `along` from the start of
+-- `parent`, `across` off its middle line, and sizes it.
+function Layout:PlaceAlong(region, parent, along, length, thickness, across)
+	local start = self.orient.start
+	region:ClearAllPoints()
+	region:SetPoint(start, parent, start, self:Offsets(along, across or 0))
+	region:SetSize(self:Extents(length, thickness))
+end
+
+-- Turns left-to-right art to run along the axis (start to end).
+function Layout:OrientTexCoord(texture)
+	local c = self.orient.texCoord
+	texture:SetTexCoord(c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8])
 end
 
 -- The visible window: anything ending before the cull edge has scrolled
@@ -136,8 +220,10 @@ function Layout:FarEdge(now)
 	return now + self.future
 end
 
+-- A lane's offset across the axis from the frame's lane-start edge (top,
+-- or left when vertical).
 function Layout:LaneOffset(index)
-	return (index - 1) * (self.laneHeight + self.spacing)
+	return self.crossPad + (index - 1) * (self.laneHeight + self.spacing)
 end
 
 -- The cadence chain after a next landing at t: equal intervals of speed,

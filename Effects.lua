@@ -61,6 +61,7 @@ function Effects:Pop(lane, t, color)
 		return
 	end
 	local texture = remove(freePops) or NewPop()
+	Layout:OrientTexCoord(texture) -- the glow is wider than tall: turn it with the axis
 	texture:SetVertexColor(color[1], color[2], color[3], 1)
 	texture:Show()
 	live[#live + 1] = { kind = "pop", lane = lane, t = t, texture = texture, start = GetTime(), duration = POP_TIME }
@@ -72,19 +73,8 @@ function Effects:Streak(lane, from, to, color)
 		return
 	end
 	local texture = remove(freeStreaks) or NewStreak()
-	local r, g, b = color[1], color[2], color[3]
-	if texture.SetGradient and CreateColor then
-		-- Horizontal gradients run left to right; the bright end is the new
-		-- instant (orientation-dependent once M7 adds the other orientations).
-		local faint, bright = CreateColor(r, g, b, 0), CreateColor(r, g, b, 1)
-		if to > from then
-			texture:SetGradient("HORIZONTAL", faint, bright)
-		else
-			texture:SetGradient("HORIZONTAL", bright, faint)
-		end
-	else
-		texture:SetVertexColor(r, g, b, 1)
-	end
+	-- Bright at the new instant: the end-facing side when it is the later one.
+	Addon.Skin.Gradient(texture, color[1], color[2], color[3], to > from)
 	texture:Show()
 	live[#live + 1] = { kind = "streak", lane = lane, from = from, to = to, texture = texture, start = GetTime(), duration = STREAK_TIME }
 end
@@ -137,13 +127,14 @@ function Effects:Place(now)
 			local texture = effect.texture
 			if effect.kind == "pop" then
 				local size = Layout.iconSize * (1 + POP_GROWTH * progress)
-				texture:SetSize(size * 1.6, size)
-				texture:SetPoint("CENTER", laneFrame, "LEFT", Layout:TimeToX(min(effect.t, far), now), 0)
+				texture:SetSize(Layout:Extents(size * 1.6, size))
+				texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(Layout:TimeToOffset(min(effect.t, far), now), 0))
 			else
-				local x1 = Layout:TimeToX(min(min(effect.from, effect.to), far), now)
-				local x2 = Layout:TimeToX(min(max(effect.from, effect.to), far), now)
-				texture:SetSize(max(x2 - x1, 1), STREAK_HEIGHT)
-				texture:SetPoint("LEFT", laneFrame, "LEFT", x1, 0)
+				local a1 = Layout:TimeToOffset(min(min(effect.from, effect.to), far), now)
+				local a2 = Layout:TimeToOffset(min(max(effect.from, effect.to), far), now)
+				local start = Layout.orient.start
+				texture:SetPoint(start, laneFrame, start, Layout:Offsets(a1, 0))
+				texture:SetSize(Layout:Extents(max(a2 - a1, 1), STREAK_HEIGHT))
 			end
 			texture:SetAlpha(1 - progress)
 		end

@@ -5,7 +5,7 @@
 -- (/actiontimeline config), and nothing dynamic registers here. Proxy
 -- settings read and write through Addon:GetSetting / SetSetting, so every
 -- change applies live and is stored at the player layer (only when it
--- differs from the default). Skin and orientation join with M7.
+-- differs from the default).
 --
 -- Dropdown contract on this client (4everSwingTimer, verified against the
 -- shipped Blizzard_Settings.lua): CreateDropdown's options argument is
@@ -65,12 +65,24 @@ function Options:Init()
 		{ "active", "While active", "Shown while anything is on the timeline: a swing, a cast, a GCD, a cooling spell, a recent mark." },
 	}, "When the timeline frame is shown. Test mode and Edit Mode always show it.")
 
+	-- Look
+	Dropdown("skin", "Skin", {
+		{ "native", "Native", "Blizzard's Encounter Timeline and Cooldown Manager art." },
+		{ "flat", "Flat", "Plain lines, square icons, thin borders." },
+	}, "The timeline's art. A Native element whose art is missing on this client falls back to Flat.")
+	Dropdown("orientation", "Orientation", {
+		{ "horizontal", "Horizontal", "Past on the left, future on the right; lanes top to bottom." },
+		{ "horizontalFlipped", "Horizontal, flipped", "Future on the left, past on the right." },
+		{ "vertical", "Vertical", "Future at the top, past at the bottom; lanes left to right." },
+		{ "verticalFlipped", "Vertical, flipped", "Future at the bottom, past at the top." },
+	}, "Which way time runs. A flip mirrors the time axis only, never the lane order.")
+
 	-- Time and size
-	Slider("pastWindow", "Past window (s)", 2, 10, 0.5, "Seconds shown left of the now line.")
-	Slider("futureWindow", "Future window (s)", 2, 15, 0.5, "Seconds shown right of the now line. Predictions further away wait at the far edge.")
-	Slider("width", "Width", 200, 900, 10, "Frame width in pixels; the time scale follows from it.")
+	Slider("pastWindow", "Past window (s)", 2, 10, 0.5, "Seconds shown on the past side of the now line.")
+	Slider("futureWindow", "Future window (s)", 2, 15, 0.5, "Seconds shown on the future side of the now line. Predictions further away wait at the far edge.")
+	Slider("width", "Length", 200, 900, 10, "The timeline's length along the time axis in pixels; the time scale follows from it.")
 	Slider("laneHeight", "Lane height", 16, 48, 1, "Lane height in pixels; icons are 2 pixels smaller.")
-	Slider("laneSpacing", "Lane spacing", 0, 16, 1, "Space between lanes in pixels.")
+	Slider("laneSpacing", "Lane spacing", 0, 16, 1, "Space between lanes in pixels. The Native icon frame overhangs its icon by about a fifth of the icon on each side: raise this if neighbouring frames touch.")
 	Slider("scale", "Scale", 0.5, 2.0, 0.05, "Overall scale. Place the frame in Edit Mode.")
 	Slider("backgroundAlpha", "Lane background", 0, 0.5, 0.05, "A faint band behind each lane (0 = none).")
 

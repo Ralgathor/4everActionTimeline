@@ -99,19 +99,57 @@ end
 
 -- Every atlas is checked once before use; a missing one falls back to the
 -- Flat equivalent at the call site, never an error.
-local atlasKnown = {}
+local atlasInfo = {}
+
+-- An atlas's info table, or false when it is missing.
+function Util.AtlasInfo(name)
+	local info = atlasInfo[name]
+	if info == nil then
+		info = false
+		if GetAtlasInfo then
+			local ok, got = pcall(GetAtlasInfo, name)
+			if ok and got then
+				info = got
+			end
+		end
+		atlasInfo[name] = info
+	end
+	return info
+end
 
 function Util.AtlasExists(name)
-	local known = atlasKnown[name]
-	if known == nil then
-		known = false
-		if GetAtlasInfo then
-			local ok, info = pcall(GetAtlasInfo, name)
-			known = ok and info ~= nil
-		end
-		atlasKnown[name] = known
+	return Util.AtlasInfo(name) ~= false
+end
+
+-- A thin line's thickness rounded to whole screen pixels, at least one: a
+-- 1-unit line under an effective scale below 1 can snap to zero pixels and
+-- vanish (Blizzard's PixelUtil, nil-guarded).
+function Util.PixelSize(region, units)
+	if PixelUtil and PixelUtil.GetNearestPixelSize and GetPhysicalScreenSize then
+		return PixelUtil.GetNearestPixelSize(units, region:GetEffectiveScale(), 1)
 	end
-	return known
+	return units
+end
+
+-- Turns off the client's pixel-grid snapping for a thin line: snapped, a
+-- line about one pixel thick is drawn or dropped depending on where it
+-- falls between pixels (Flat tracks vanished in some lanes, build 70235).
+function Util.NoSnap(texture)
+	if texture.SetSnapToPixelGrid then
+		texture:SetSnapToPixelGrid(false)
+	end
+	if texture.SetTexelSnappingBias then
+		texture:SetTexelSnappingBias(0)
+	end
+end
+
+-- An existing atlas's native size, or the fallback size.
+function Util.AtlasSize(name, fallbackWidth, fallbackHeight)
+	local info = Util.AtlasInfo(name)
+	if info and info.width and info.height then
+		return info.width, info.height
+	end
+	return fallbackWidth, fallbackHeight
 end
 
 -- ---------------------------------------------------------------------------

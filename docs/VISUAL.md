@@ -49,9 +49,13 @@ tints) — and 4everSwingTimer's asset catalog (its
 ### Lanes and tracks
 
 - Every lane draws its own track line through its middle. Native: the
-  `combattimeline-line-left` / `-right` pair, the line broken where a mark
-  sits (`combattimeline-line-break-mask`, as Blizzard does). Flat: a 1 px
-  line.
+  `combattimeline-line-left` / `-right` pair — the left segment over the
+  past window, the right one over the future window, meeting at the now
+  line. Flat: a 1 px line.
+- As built (M7): no line breaks. Blizzard's `combattimeline-line-break-mask`
+  breaks its line at fixed time intervals, not under its icons, and a
+  texture takes at most three masks; the Native icon frame covers the line
+  under a mark anyway. Revisit if the unbroken line reads poorly.
 - A **lane background alpha** slider (default 0, Blizzard's
   `BackgroundAlpha` default) adds a faint band behind each lane for players
   who want it.
@@ -71,8 +75,11 @@ tints) — and 4everSwingTimer's asset catalog (its
 - Native: Blizzard's event icon — the icon masked by
   `UI-HUD-CoolDownManager-Mask`, `UI-HUD-CoolDownManager-IconOverlay` on
   top, the overlay overhanging the icon by a few pixels (Blizzard anchors
-  it at −7/+6/+7/−7 on a 35 px icon), so lane spacing must clear the
-  overhang. Flat: the icon edge-cropped with a 1 px black border.
+  it at −7/+6/+7/−7 on a 35 px icon, scaled with the icon), so lane
+  spacing must clear the overhang. Flat: the icon edge-cropped with a 1 px
+  black border. The sink icon wears the same frame.
+- The frame clips its children, so in Native it pads the outer lanes by the
+  overlay's overhang (and half the pip) across the axis.
 - Icon size = lane height − 2 px. The lane height setting is the icon size
   control; no separate icon scale.
 
@@ -165,9 +172,10 @@ in v1 — range is an unprobed read and leans toward press-this-next advice.
   **chevron** on its outer side ("further than this"). The sink icon gets
   no chevron — Lua cannot tell whether it is pinned — so a pinned sink
   icon and a pinned readable mark look different; accepted.
-- Asset (probe 14, build 70235): `uitools-icon-chevron-right` / `-left`
-  (20×20, white, so it takes the track color; the left one for flipped
-  orientations, rotated through tex coords for vertical). The other
+- Asset (probe 14, build 70235): `uitools-icon-chevron-right` (20×20,
+  white, so it takes the track color), turned through tex coords for every
+  orientation — mirrored when flipped, rotated when vertical — so
+  `-left` is not needed. The other
   candidates seen (`common-icon-forwardarrow`, `NPE_ArrowRight`) are
   pre-colored yellow and were passed over. Fallback in both skins is a
   small triangle of two rotated `WHITE8X8` strokes in the track color.
@@ -241,9 +249,11 @@ in v1 — range is an unprobed read and leans toward press-this-next advice.
   motion trail during its last **1.5 s** before the now line (one GCD:
   "lands within your next GCD"). Deeper cadence-chain marks never trail.
   The onset is a constant, not a setting.
-- Native: `combattimeline-line-icontrail`, `ADD` blend. Flat: a `WHITE8X8`
-  streak in the lane's track color, fading to transparent, the length of
-  the Native trail art.
+- Native: `combattimeline-line-icontrail`, `ADD` blend, at its atlas
+  size. Flat: a `WHITE8X8` streak in the lane's track color, fading to
+  transparent toward the now line, 64 px long. Either lies on the mark's
+  now-facing side, its end 10 px into the icon (Blizzard's
+  `UpdateTrailLayout`), and fades in over the 1.5 s.
 - The sink icon never trails: Lua cannot read its position, so the 1.5 s
   onset cannot be timed honestly. Happened marks and now-line marks never
   trail.

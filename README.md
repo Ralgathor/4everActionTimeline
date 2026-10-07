@@ -4,7 +4,8 @@ A live action timeline for **WoW: Forever**: what you just did and what is
 about to happen, laid out around a now line.
 
 > **Status: early build.** Live swing lanes (main hand, off hand, ranged),
-> the GCD lane, the cast lane and spell cooldown lanes. Cast each tracked
+> the GCD lane, the cast lane and spell cooldown lanes, in Blizzard's own
+> timeline art or a flat look, horizontal or vertical. Cast each tracked
 > spell once out of combat so its cooldown is learned
 > (`/actiontimeline calibration` shows what is known).
 
@@ -49,11 +50,26 @@ invents what it cannot see:
 | `/actiontimeline sink countdown on \| off` | show the engine's own countdown on those icons (needs the game's "show cooldown numbers" option) |
 | `/actiontimeline calibration [wipe]` | what each tracked spell's cooldown is known as (or forget them all) |
 | `/actiontimeline debug` | each spell lane's live state and the last casts (for bug reports) |
+| `/actiontimeline debug layout` | each lane frame and its track line as the client sees them: skin, orientation, scale (for bug reports) |
 | `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |
 
 Move the timeline in **Edit Mode**: open Edit Mode and drag the
 "4everActionTimeline" handle.
+
+## FAQ
+
+**Why does a parried or missed swing look the same as a hit?** Swing marks
+are outcome-agnostic on purpose: whether a swing hit, crit, missed, was
+dodged or parried is only in the combat log, which Forever refuses to
+addons. A mark means "the swing happened", nothing more. What the timeline
+does show is swing *timing* the game reports — an early landing, a clip,
+a delayed shot.
+
+**Why are some icons faded?** Faded (desaturated) means a prediction;
+full color means the game confirmed it. Blue and grey tints on a ready
+spell are Blizzard's own action-bar colors: not enough resource, and not
+usable.
 
 ## Requirements
 

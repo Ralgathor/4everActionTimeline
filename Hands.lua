@@ -111,15 +111,16 @@ local function Collect(lane, now, out)
 		local horizon = Layout.future + speed
 		local n = 0
 		while remaining + n * speed <= horizon do
-			out[#out + 1] = { atNow = true, after = remaining + n * speed, icon = icon, dim = true, desaturated = n > 0, chain = n > 0 }
+			out[#out + 1] = { atNow = true, after = remaining + n * speed, icon = icon, dim = true, desaturated = n > 0, chain = n > 0, paused = true }
 			n = n + 1
 		end
 		return
 	end
-	local nextIcon = lane.hand == "mainhand" and state.queuedIcon or icon
+	local queued = lane.hand == "mainhand" and state.queuedIcon
 	out[#out + 1] = {
 		t = expiration,
-		icon = nextIcon,
+		icon = queued or icon,
+		queued = queued and true or nil,
 		predicted = true,
 		border = state.heldSince and "amber" or nil,
 		shake = lane.shakeStart,

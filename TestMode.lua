@@ -4,8 +4,10 @@
 -- that emit the mark family the encoding check covers: happened, predicted
 -- (next landing full color, cadence chain desaturated, cooldowns
 -- desaturated), overdue, edge clamp with chevron, ready, unusable (blue and
--- grey), unknown-cooldown, parked, the in-flight now-line icon, a stopped
--- cast's red border, a clip tick and GCD window bars. Every 10 s it ingests
+-- grey), unknown-cooldown, parked, paused, a queued ability on the main
+-- hand (every other swing), the in-flight now-line icon, a stopped cast's
+-- red border, a clip tick, GCD window bars and the next predicted mark's
+-- motion trail. Every 10 s it ingests
 -- an entry carrying the test secret, which the store drops and counts; the
 -- count is reported when test mode ends. It doubles as the user demo.
 
@@ -20,6 +22,9 @@ local TICK = 0.05
 local SWING = 2.6 -- main-hand speed
 local OVERDUE_EVERY, OVERDUE_DELAY = 6, 1.0 -- landing k (k % 6 == 5) lands 1 s late
 local CLIP_EVERY = 6 -- a clip tick before landing k (k % 6 == 2)
+local QUEUED_ICON_SPELL = 78 -- Heroic Strike, queued on every other swing
+local PAUSED_ICON_SPELL = 75 -- Auto Shot, the paused ranged hand's icon
+local PAUSED_LEFT, PAUSED_SPEED = 1.4, 2.8 -- the paused ranged hand's frozen swing
 local GCD_PERIOD, GCD = 3.2, Addon.PROBES.gcd
 local CAST_PERIOD, CAST_TIME, CAST_STOP_AT = 6.0, 2.0, 1.2
 local SECRET_EVERY = 10
@@ -87,7 +92,8 @@ end
 function mainHand:Collect(now, out)
 	Happened(self, now, out)
 	local expected = Expected(self.nextLanding)
-	out[#out + 1] = { t = expected, icon = weaponIcon, predicted = true }
+	local queued = self.nextLanding % 2 == 0
+	out[#out + 1] = { t = expected, icon = queued and SpellIcon(QUEUED_ICON_SPELL) or weaponIcon, queued = queued, predicted = true }
 	Layout.AppendChain(out, expected, SWING, weaponIcon, now)
 end
 
@@ -103,6 +109,25 @@ function offHand:Advance() end
 
 function offHand:Collect(_, out)
 	out[#out + 1] = { atNow = true, icon = weaponIcon, dim = true }
+end
+
+-- ---------------------------------------------------------------------------
+-- Ranged: paused (frozen, dimmed marks ahead of the now line).
+-- ---------------------------------------------------------------------------
+
+local ranged = { key = "test-ranged", group = "hand", order = 3 }
+
+function ranged:Reset() end
+
+function ranged:Advance() end
+
+function ranged:Collect(_, out)
+	local horizon = Layout.future + PAUSED_SPEED
+	local n = 0
+	while PAUSED_LEFT + n * PAUSED_SPEED <= horizon do
+		out[#out + 1] = { atNow = true, after = PAUSED_LEFT + n * PAUSED_SPEED, icon = SpellIcon(PAUSED_ICON_SPELL), dim = true, desaturated = n > 0, chain = n > 0, paused = true }
+		n = n + 1
+	end
 end
 
 -- ---------------------------------------------------------------------------
@@ -241,7 +266,7 @@ local charge = SpellLane("test-spell-b", 2, 100, 40, 2, 30)
 -- Hammer of Justice: cooling with an unknown end (uncalibrated), then ready.
 local hammer = SpellLane("test-spell-c", 3, 853, 14, 3, 8, nil, true)
 
-lanes = { mainHand, offHand, gcd, cast, thunderClap, charge, hammer }
+lanes = { mainHand, offHand, ranged, gcd, cast, thunderClap, charge, hammer }
 
 -- ---------------------------------------------------------------------------
 -- Clock

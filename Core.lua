@@ -249,7 +249,7 @@ SlashCmdList["4EVERACTIONTIMELINE"] = function(msg)
 	elseif command == "options" then
 		Addon.Options:Open()
 	elseif command == "debug" then
-		for _, line in ipairs(Addon.Spells:Debug()) do
+		for _, line in ipairs(rest == "layout" and Addon.Renderer:DebugLayout() or Addon.Spells:Debug()) do
 			Addon:Print(line)
 		end
 	elseif command == "lane" then

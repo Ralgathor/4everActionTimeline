@@ -10,11 +10,13 @@
 -- hide-on-complete needed). Display-only: Lua never reads its geometry, the
 -- icon is a leaf, linear scale only, no chevron. Full color: engine truth.
 -- Sink lanes group at the bottom, in lane order; the optional countdown is
--- the engine's own Cooldown numbers, fed the same secret.
+-- the engine's own Cooldown numbers, fed the same secret. Every orientation:
+-- the bar fills from the now line toward the far edge (SetOrientation,
+-- SetReverseFill), the icon on the fill's end-facing edge.
 
 local Addon = FourEverActionTimeline
 -- Loaded before the renderer: Addon.Renderer is looked up when needed.
-local Util, Layout = Addon.Util, Addon.Layout
+local Util, Layout, Skin = Addon.Util, Addon.Layout, Addon.Skin
 
 local GetCooldownDuration = C_Spell and C_Spell.GetSpellCooldownDuration
 
@@ -32,20 +34,15 @@ local shown = {} -- the registered sink lanes, fed every frame
 
 local function Collect() end -- no readable marks: the engine draws the icon
 
--- The bar, its icon (a leaf on the fill's edge, bordered like a mark) and
+-- The bar, its icon (a leaf on the fill's edge, framed like a mark) and
 -- the countdown.
 local function Build(lane)
 	local bar = CreateFrame("StatusBar", nil, layer)
 	bar:SetStatusBarTexture(Util.WHITE)
 	bar:GetStatusBarTexture():SetAlpha(0) -- transparent: only the icon shows
 	bar:SetValue(0)
-	local fill = bar:GetStatusBarTexture()
-	lane.border = bar:CreateTexture(nil, "ARTWORK")
-	lane.border:SetColorTexture(0, 0, 0, 1)
-	lane.border:SetPoint("CENTER", fill, "RIGHT")
-	lane.iconTexture = bar:CreateTexture(nil, "OVERLAY")
-	lane.iconTexture:SetTexCoord(Util.ICON_CROP, 1 - Util.ICON_CROP, Util.ICON_CROP, 1 - Util.ICON_CROP)
-	lane.iconTexture:SetPoint("CENTER", fill, "RIGHT")
+	lane.art = Skin.CreateIconArt(bar)
+	lane.iconTexture = lane.art.icon
 	lane.countdown = CreateFrame("Cooldown", nil, bar, "CooldownFrameTemplate")
 	lane.countdown:SetAllPoints(lane.iconTexture)
 	if lane.countdown.SetDrawSwipe then
@@ -103,18 +100,21 @@ function Sinks:Sync(spellLanes)
 end
 
 -- After the renderer laid the lanes out: each bar spans its lane's future
--- window, from the now line to the far edge (linear, as TimeToX).
+-- window, from the now line to the far edge (linear, as TimeToOffset).
 function Sinks:Layout()
-	local size, countdown = Layout.iconSize, Addon:GetSetting("sinkCountdown")
+	local size, countdown, orient = Layout.iconSize, Addon:GetSetting("sinkCountdown"), Layout.orient
 	for _, lane in ipairs(shown) do
 		local bar = lane.bar
 		bar:ClearAllPoints()
 		if lane.frame then
-			bar:SetPoint("LEFT", lane.frame, "LEFT", Layout.nowX, 0)
-			bar:SetSize(Layout.future * Layout.pxPerSec, Layout.laneHeight)
+			Layout:PlaceAlong(bar, lane.frame, Layout.nowX, Layout.future * Layout.pxPerSec, Layout.laneHeight)
+			bar:SetOrientation(orient.axis)
+			bar:SetReverseFill(orient.sign < 0)
 			bar:SetMinMaxValues(0, Layout.future)
-			lane.border:SetSize(size, size)
-			lane.iconTexture:SetSize(size - 2, size - 2)
+			lane.iconTexture:ClearAllPoints()
+			lane.iconTexture:SetPoint("CENTER", bar:GetStatusBarTexture(), orient.finish)
+			Skin.StyleIcon(lane.art, size)
+			Skin.SetBorder(lane.art, nil)
 			lane.countdown:SetShown(countdown)
 			FeedCountdown(lane)
 			bar:Show()

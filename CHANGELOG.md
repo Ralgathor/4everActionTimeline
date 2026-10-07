@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M7 skins and orientations: the Native skin (default) — Blizzard's
+  timeline track segments, the cooldown-divider now line with its pip,
+  Cooldown Manager–framed icons (mask and overlay, tinted red or amber for
+  stopped casts and the held hand), the Cooldown Manager bar art for
+  windows, the pause overlay on a paused hand's marks and the queued
+  overlay on the main-hand mark — each element falling back to Flat when
+  its art is missing; the four orientations (horizontal, horizontal
+  flipped, vertical, vertical flipped) for lanes, windows, ticks, the edge
+  clamp and its chevron, effects and the engine-drawn lanes; the motion
+  trail on each lane's next predicted mark in its last 1.5 s. Skin and
+  orientation in the Settings category; test mode shows a paused and a
+  queued hand.
 - M6 settings: the Settings category (visibility, windows, width, lane
   height and spacing, scale, lane background, hand / GCD / cast lane
   toggles, GCD length with custom value, engine-lane countdown), the lane

@@ -24,6 +24,7 @@ Data\Druid.lua
 Data\Shaman.lua
 Store.lua
 Layout.lua
+Skin.lua
 Effects.lua
 Sinks.lua
 Renderer.lua
