@@ -214,6 +214,20 @@ numbers.
   lane per tracked spell. Fixed order: hands/ranged, then GCD, then the cast
   lane, then spell lanes in lane-set order, then sink lanes grouped at the
   bottom (in the same lane-set order).
+- **Layouts** (ADR-0005): that lane order is the **Detailed** layout.
+  **Single lane** (the default) maps the same lanes onto one track, look
+  in `VISUAL.md` (Layouts):
+  - hands: main hand and ranged on the lane-start side of the track, off
+    hand on the other; the next landing plus a 1-deep cadence chain;
+  - GCD: a band behind the track;
+  - cast lane: a bar on the track (instants: an icon at the moment of use);
+  - spell lanes: predicted returns on the track; ready spells fill fixed
+    slots of the **ready row** in lane-set order; a **long cooldown** gets
+    no slot (a ring on the now line marks its return);
+  - sink lanes: one thin row each after the ready row.
+  A spell is a long cooldown when its cooldown is 30 s or more, unless
+  the class data or the lane window says otherwise; a spell whose cooldown
+  is not known yet counts as a rotation ability until it is.
 - **Event store**: a ring buffer of `{time, kind, spellID, lane}` entries fed
   by library swing callbacks and the player's own spellcast events. Entries
   expire past the past window plus a margin; a hard entry cap backstops
@@ -282,7 +296,7 @@ numbers.
   reset spell to the spells it resets; casting it switches those lanes to
   their ready mark (or unusable mark). The curated data — starter set,
   linked-cooldown seed, delayed-start seed, reset table, form and stance
-  requirements — is one data
+  requirements, long-cooldown tags overriding the 30 s threshold — is one data
   file per class, all nine classes in v1 (starter sets of 3–5 rotation
   spells; seeds and resets only where known to apply).
 - **Delayed-start cooldowns** (Stealth, Nature's Swiftness, Presence of
@@ -542,12 +556,12 @@ numbers.
   not tracked in v1 — spell cooldowns only.
 - **Settings surface split**: the client's Settings vertical layout supports
   checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (windows, width, scale, lane height, spacing, GCD override, lane-kind
+  (layout, windows per layout, ready row side, width, scale, lane height, spacing, GCD override, lane-kind
   toggles, visibility, skin, orientation, lane background alpha, sink
   countdown —
   see `VISUAL.md`)
   live in the 12.x Settings category; the lane list (per-spell enable, sink
-  opt-in, manual override, drag-reorder) lives in the addon's own settings
+  opt-in, manual override, long cooldown, drag-reorder) lives in the addon's own settings
   window, opened from the slash command. Nothing dynamic registers in the
   Settings category.
 - **Frame anchoring**: placed in Blizzard Edit Mode, following ForeverCDM's
@@ -644,6 +658,14 @@ numbers.
 - The encoding check also measures renderer frame time against the
   performance budget and views the effect previews once through a
   color-blindness simulator.
+- The encoding check runs for both layouts. Test mode and `test effects`
+  drive whichever layout is active; test mode adds a long cooldown
+  returning (the now-line ring). Single lane adds a **peripheral pass**:
+  watching test mode with the eyes about 20° off the timeline (on the
+  screen centre), a swing landing, a cooldown returning, a cast in flight
+  and a running GCD must each be told apart. The color-blindness pass
+  covers Single lane's held outline and amber delay line. Both layouts
+  meet the same frame-time budget.
 - Syntax checks run before every in-game pass (luajit/luac), per the repo
   conventions.
 

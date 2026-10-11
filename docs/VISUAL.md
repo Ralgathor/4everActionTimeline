@@ -46,6 +46,114 @@ tints) — and 4everSwingTimer's asset catalog (its
   texture coordinates, the way `EncounterTimelineOrientedTextureMixin`
   does.
 
+### Layouts
+
+- Two layouts, picked in a Settings dropdown (ADR-0005): **Single lane**
+  (default) folds every lane kind onto one track around the now line, for
+  peripheral reading; **Detailed** is the M7 layout, one lane per kind.
+  The rest of this document describes Detailed unless a rule says
+  otherwise.
+- Single lane design: settled round by round in the Single lane session
+  (2026-10-11), from the layout study mock-up. The lane mapping is in
+  `SPEC.md` (Layouts); the look is below.
+- Single lane, hands: the main hand above the track, the off hand below
+  it. Ranged shares the main hand's side as a hollow diamond (an outline,
+  not filled) in a pale green - filled for melee, hollow for ranged, so
+  shape tells them apart first (melee and auto shot do not run together in practice; when both are
+  live, ranged sits a step further out so neither covers the other).
+  Without an off hand the space below stays empty: the lane never changes
+  height mid-session.
+- Single lane, swing marks: one shape from future to past, so a landing
+  never changes look as it crosses the now line. The next landing is a
+  full-color diamond (Native: `combattimeline-pip`; Flat: a drawn
+  diamond) - the library's expiry is fact-grade. The cadence chain is
+  1 deep: one smaller, desaturated diamond after the next landing.
+  Landed swings stay diamonds and fade over the past window. A queued
+  ability replaces the next landing's diamond with its own small icon
+  (about 14 px), and the landed swing keeps that icon. A paused hand's
+  diamonds freeze and dim; a parked hand (auto-attack off) shows a dim,
+  desaturated diamond on the now line. The next landing's diamond grows
+  (about 5 to 8 px at the default height) over its last 1.5 s, the same
+  urgency rule as a returning cooldown.
+- Single lane, casts: a bar about 6 px thick on the track, in a warm gold
+  kept clear of the GCD's blue - solid where elapsed, lighter where still
+  to run - from cast start to completion, the spell icon at its
+  completion end. The icon is full color during the cast (the cast time
+  is a plain read, `PROBES.castTimePlain`, as for Detailed's completion
+  mark). Once complete, bar and icon fade over the past window. A
+  stopped, failed or interrupted cast cuts the bar where it stopped and
+  moves the icon there with the red border and the across-lane shake; the
+  unrun part vanishes with the red pop (Stopped casts). Pushback jumps the
+  bar's end and icon with the amber pop. A channel draws the same bar to
+  its end; one stopped early follows the stopped-cast rule. An instant
+  ability leaves its icon on the track at the moment of use, fading the
+  same way.
+- Single lane, returning cooldowns: a desaturated icon on the track at
+  the predicted return, 16 px, growing to about 24 px and full opacity
+  over its last 1.5 s (still desaturated). The growth replaces the motion
+  trail, which would overlap the mark before it on a shared track.
+  Overlapping icons step 8 px off the track, up then down (clear of the
+  swing diamonds); past three levels they overlap slightly. Linked
+  cooldowns draw one icon per spell, stepped as a pair. An overdue icon
+  pins on the now line until the engine confirms the spell is ready; past
+  the far edge the edge clamp and chevron apply.
+- Single lane, ready row: under the track, on the past side, ending at
+  the now line. Each rotation ability has a fixed slot in lane-window
+  order; a slot shows a faint empty outline while its spell cools down and
+  fills when it is ready, so the row never reorders or changes width. The
+  slots keep Detailed's state tints (blue resource-short, grey unusable,
+  desaturated unknown cooldown), so the row reads "pressable now". A
+  return flashes a ring on the slot.
+- Single lane, ready row side: a Settings dropdown, **Past side**
+  (default) or **Future side**. Past side keeps a returning cooldown moving
+  one way (it crosses the now line into its slot) and leaves the future
+  side to what is arriving; the row's width follows its slot count, not
+  the past window - the frame widens on its past side to fit the slots.
+  Future side starts the slots at the now line, for players who keep their
+  eyes ahead of it. Either side follows the orientation.
+- Single lane, long cooldowns: a spell whose cooldown is not yet known
+  (uncalibrated, no class-data tag) counts as a rotation ability and keeps
+  a slot until its cooldown is learned - the one case where the ready row
+  changes width. Long cooldowns get no slot. While cooling they ride the track
+  like any returning cooldown, clamped at the far edge with the chevron
+  while beyond the future window; on their return a ring flashes on the
+  now line and the icon leaves the track.
+- Single lane, GCD: a faint band across the lane's full height, behind
+  every mark (Native: the Cooldown Manager bar art; Flat: `WHITE8X8`),
+  in Detailed's pale whitish blue. Where the GCD still has to run the band
+  is at its full faint strength; the elapsed part is dimmer and fades with
+  age over the past window, so idle gaps between GCDs show. No edge strip.
+  An off-GCD ability opens no band. The band is a tint behind the marks,
+  not a mark: source-certainty saturation applies to marks only, so the
+  part still to run may be the stronger one (Detailed's window bar, a mark,
+  keeps elapsed full color and unelapsed desaturated).
+- Single lane, hand effects (Hand-lane effects, Color-blind safety): the
+  reposition pop flashes on the diamond unchanged; the correction streak
+  runs on the hand's side of the track from old to new diamond, tapered
+  as before. Held: the ranged diamond's outline turns amber (ranged is
+  the only hollow diamond, so held is one outline, not two). Delay span: a thin amber
+  line (about 2 px) on the ranged side of the track, clear of the cast
+  bar. Clip mark: a small red tick on the hand's side - the lane's only
+  tick shape, so it never reads as a landing. The across-lane shake moves
+  only the affected diamond or icon, across the track.
+- Single lane, engine-drawn lanes: one thin row each (18 px, 16 px
+  icons) under the ready row, on the same time axis. The sink rules hold:
+  the spell's predicted mark leaves the track while its sink is on, the
+  pinned icon shows no chevron, the countdown text stays optional. Its
+  ready-row slot (or, for a long cooldown, the now-line ring) still
+  follows the plain off-cooldown read.
+- Single lane, settings: each layout keeps its own past and future window
+  (Single lane default 1.5 s / 10 s); the Settings sliders edit the active
+  layout's pair. The lane height setting sizes the track and everything on
+  it scales with it - the pixel sizes above are those at the default
+  height. Edit Mode, visibility and skin are shared. Lane spacing is the
+  gap between the track, the ready row and the engine-drawn rows; the lane
+  background alpha draws its band behind the track only.
+- Single lane, orientation: all four orientations. The main hand takes the
+  lane-start side across the track (top when horizontal, left when
+  vertical); the ready row, then the engine-drawn rows, stack on the other
+  side. A flip mirrors only the time axis.
+
 ### Lanes and tracks
 
 - Every lane draws its own track line through its middle. Native: the
