@@ -109,8 +109,8 @@ local function Collect(lane, now, out)
 		-- line, dimmed, until the swing resumes.
 		local remaining = expiration - state.pausedAt
 		local horizon = Layout.future + speed
-		local n = 0
-		while remaining + n * speed <= horizon do
+		local n, depth = 0, Layout.chainDepth
+		while n <= depth and remaining + n * speed <= horizon do
 			out[#out + 1] = { atNow = true, after = remaining + n * speed, icon = icon, dim = true, desaturated = n > 0, chain = n > 0, paused = true }
 			n = n + 1
 		end
@@ -166,13 +166,14 @@ end
 -- ---------------------------------------------------------------------------
 
 -- The landing's icon: the on-next-swing ability it carried (its SUCCEEDED
--- arrived just before), else the hand's current icon.
+-- arrived just before), else the hand's current icon. The second value is
+-- true when an ability rode the swing.
 local function LandingIcon(lane, now)
 	local state = lane.state
 	if state.pendingIcon and now - state.pendingAt <= ON_NEXT_SWING_WINDOW then
 		local icon = state.pendingIcon
 		state.pendingIcon = nil
-		return icon
+		return icon, true
 	end
 	return lane.icon
 end
@@ -223,7 +224,8 @@ function Hands:OnStart(hand, speed, expiration, isUpdate)
 		else
 			-- A landing: at the anchor, with the icon it landed with.
 			local landing = expiration - speed
-			local entry = { kind = "swing", lane = lane.key, time = landing, icon = LandingIcon(lane, now) }
+			local icon, onSwing = LandingIcon(lane, now)
+			local entry = { kind = "swing", lane = lane.key, time = landing, icon = icon, onSwing = onSwing }
 			Ingest(entry)
 			state.lastLanding, state.lastLandingAt = entry, now
 			if reason == "early" then
@@ -332,7 +334,7 @@ function Hands:OnSpellSucceeded(spellID)
 	local lane, now = lanes.mainhand, GetTime()
 	local state, icon = lane.state, GetSpellTexture and GetSpellTexture(spellID)
 	if state.lastLanding and state.lastLandingAt == now then
-		state.lastLanding.icon = icon
+		state.lastLanding.icon, state.lastLanding.onSwing = icon, true
 		Renderer:MarkDirty(lane)
 	else
 		state.pendingIcon, state.pendingAt = icon, now

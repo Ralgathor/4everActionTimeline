@@ -12,9 +12,13 @@
 -- The skin (Skin.lua) and the orientation (Layout.orient) are applied on a
 -- layout pass: a widget whose `style` differs from Layout.style re-applies
 -- what they decide before its next configure.
+-- Two layouts: Detailed (a lane frame per lane) and Single lane (the lanes
+-- but the sink lanes share one track; SingleLane.Adapt rewrites each
+-- descriptor - glyph, offset across the track, size, fade - before the
+-- widgets are configured).
 
 local Addon = FourEverActionTimeline
-local Util, Layout, Store, Effects, Skin = Addon.Util, Addon.Layout, Addon.Store, Addon.Effects, Addon.Skin
+local Util, Layout, Store, Effects, Skin, SingleLane = Addon.Util, Addon.Layout, Addon.Store, Addon.Effects, Addon.Skin, Addon.SingleLane
 local ShakeOffset = Effects.ShakeOffset
 
 local GetTime = GetTime
@@ -39,6 +43,13 @@ local TRAIL_ONSET = 1.5
 local TRAIL_OVERLAP = 10
 local FLAT_TRAIL_LENGTH, FLAT_TRAIL_THICKNESS = 64, 3
 local TRACK_COLOR = { 1, 1, 1, 0.18 }
+-- Single lane has one track, its spine: the Flat line is 2 px and brighter,
+-- so it still reads when a thin unsnapped line straddles two screen pixels.
+local SINGLE_TRACK_ALPHA = 0.28
+-- Single lane: the dark ground behind everything (the mock-up's).
+local BACKDROP_COLOR = { 0.05, 0.06, 0.05 }
+-- Single lane: a cooling spell's empty ready-row slot.
+local SLOT_OUTLINE_COLOR, SLOT_OUTLINE_ALPHA = { 0.9, 0.91, 0.93 }, 0.3
 -- Red (cast failure, clip) and amber (the held ranged hand) are the effect
 -- colors, so a border always matches its pop.
 local BORDER_COLORS = {
@@ -55,7 +66,7 @@ local TICK_COLOR = BORDER_COLORS.red
 local Renderer = {}
 Addon.Renderer = Renderer
 
-local frame, barLayer, markLayer, nowLine, pip
+local frame, backdrop, barLayer, markLayer, nowLine, pip
 local laneFrames = {}
 local scratch = {}
 local allDirty, layoutDirty = true, true
@@ -145,6 +156,14 @@ local function CreateMark()
 	return mark
 end
 
+-- A growing widget's scale: nil is 1 (the next mark grows as it nears the now line).
+local function SetWidgetScale(widget, scale)
+	if (widget.scale or 1) ~= scale then
+		widget.scale = scale ~= 1 and scale or nil
+		widget:SetScale(scale)
+	end
+end
+
 local function ResetMark(mark)
 	mark:Hide()
 	mark:ClearAllPoints()
@@ -152,6 +171,51 @@ local function ResetMark(mark)
 	mark.trail:Hide()
 	mark.desc, mark.laneFrame, mark.pinned, mark.visible, mark.x, mark.y = nil, nil, nil, nil, nil, nil
 	mark.trailing, mark.trailShown = nil, nil
+	SetWidgetScale(mark, 1)
+end
+
+-- The Single lane swing diamond: a frame (it scales as it nears the now line).
+local function CreateDiamond()
+	local diamond = CreateFrame("Frame", nil, markLayer)
+	diamond.art = Skin.CreateDiamond(diamond)
+	return diamond
+end
+
+local function ResetDiamond(diamond)
+	diamond:Hide()
+	diamond:ClearAllPoints()
+	diamond.desc, diamond.laneFrame, diamond.visible, diamond.x, diamond.y = nil, nil, nil, nil, nil
+	SetWidgetScale(diamond, 1)
+end
+
+-- A cooling spell's ready-row slot: a faint square outline, the same in both
+-- skins. Its edges stretch between two corners each (two anchor names on
+-- purpose).
+local function CreateOutline()
+	local outline = CreateFrame("Frame", nil, markLayer)
+	local edges = {}
+	for i = 1, 4 do
+		edges[i] = outline:CreateTexture(nil, "ARTWORK")
+		edges[i]:SetTexture(WHITE)
+		edges[i]:SetVertexColor(SLOT_OUTLINE_COLOR[1], SLOT_OUTLINE_COLOR[2], SLOT_OUTLINE_COLOR[3], 1)
+	end
+	edges[1]:SetPoint("TOPLEFT")
+	edges[1]:SetPoint("TOPRIGHT")
+	edges[2]:SetPoint("BOTTOMLEFT")
+	edges[2]:SetPoint("BOTTOMRIGHT")
+	edges[3]:SetPoint("TOPLEFT")
+	edges[3]:SetPoint("BOTTOMLEFT")
+	edges[4]:SetPoint("TOPRIGHT")
+	edges[4]:SetPoint("BOTTOMRIGHT")
+	outline.edges = edges
+	outline:SetAlpha(SLOT_OUTLINE_ALPHA)
+	return outline
+end
+
+local function ResetOutline(outline)
+	outline:Hide()
+	outline:ClearAllPoints()
+	outline.desc, outline.laneFrame, outline.visible, outline.x, outline.y = nil, nil, nil, nil, nil
 end
 
 local function CreateTick()
@@ -163,7 +227,7 @@ end
 local function ResetTick(tick)
 	tick:Hide()
 	tick:ClearAllPoints()
-	tick.desc, tick.laneFrame, tick.visible, tick.x = nil, nil, nil, nil
+	tick.desc, tick.laneFrame, tick.visible, tick.x, tick.y = nil, nil, nil, nil, nil
 end
 
 -- A window bar: the elapsed span at full color, the unelapsed span
@@ -180,7 +244,7 @@ end
 local function ResetSpan(texture)
 	texture:Hide()
 	texture:ClearAllPoints()
-	texture.visible, texture.x, texture.width = nil, nil, nil
+	texture.visible, texture.x, texture.across, texture.width = nil, nil, nil, nil
 end
 
 local function ResetBar(bar)
@@ -203,6 +267,8 @@ local function CreateLaneFrame()
 	lane.trackStart = lane:CreateTexture(nil, "BORDER")
 	lane.trackEnd = lane:CreateTexture(nil, "BORDER")
 	lane.marks = Util.NewPool(CreateMark, ResetMark)
+	lane.diamonds = Util.NewPool(CreateDiamond, ResetDiamond)
+	lane.outlines = Util.NewPool(CreateOutline, ResetOutline)
 	lane.ticks = Util.NewPool(CreateTick, ResetTick)
 	lane.bars = Util.NewPool(CreateBar, ResetBar)
 	return lane
@@ -212,6 +278,10 @@ end
 local function ClearLaneFrame(laneFrame)
 	laneFrame.marks:BeginReuse()
 	laneFrame.marks:Trim()
+	laneFrame.diamonds:BeginReuse()
+	laneFrame.diamonds:Trim()
+	laneFrame.outlines:BeginReuse()
+	laneFrame.outlines:Trim()
 	laneFrame.ticks:BeginReuse()
 	laneFrame.ticks:Trim()
 	laneFrame.bars:BeginReuse()
@@ -225,7 +295,7 @@ end
 -- Widgets are reused in place across rebuilds and remember what they were
 -- last set to, so a rebuild only calls the API for what actually changed.
 local function ConfigureMark(mark, desc)
-	local size = Layout.iconSize
+	local size = desc.size or Layout.iconSize
 	if mark.style ~= Layout.style or mark.size ~= size then
 		mark.style, mark.size = Layout.style, size
 		mark:SetSize(size, size)
@@ -254,11 +324,10 @@ local function ConfigureMark(mark, desc)
 			mark.icon:SetVertexColor(1, 1, 1)
 		end
 	end
-	local alpha = desc.dim and DIM_ALPHA or 1
-	if mark.alphaValue ~= alpha then
-		mark.alphaValue = alpha
-		mark:SetAlpha(alpha)
-	end
+	-- The base alpha, rewritten on every rebuild: a fading mark writes its alpha
+	-- every frame, and what a fade left must not outlive the mark's use.
+	mark.alphaValue, mark.fadeAlpha = desc.alpha or (desc.dim and DIM_ALPHA or 1), nil
+	mark:SetAlpha(mark.alphaValue)
 	Skin.SetBorder(mark.art, BORDER_COLORS[desc.border])
 	Skin.SetStates(mark.art, desc.paused, desc.queued)
 end
@@ -267,8 +336,12 @@ local function ConfigureTick(tick, desc)
 	local color = desc.color or TICK_COLOR
 	if tick.colorRef ~= color then
 		tick.colorRef = color
-		tick:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
+		tick:SetVertexColor(color[1], color[2], color[3], 1)
 	end
+	-- A texture's alpha is one value (SetAlpha replaces SetVertexColor's): the
+	-- color goes in opaque, the alpha (rewritten on every rebuild) after it.
+	tick.alphaValue, tick.fadeAlpha = color[4] or 1, nil
+	tick:SetAlpha(tick.alphaValue)
 	local height = max(Layout.laneHeight / 3, 4)
 	if tick.height ~= height or tick.style ~= Layout.style then
 		tick.height, tick.style = height, Layout.style
@@ -291,8 +364,32 @@ local function StyleSpan(texture, atlas)
 	end
 end
 
+local function ConfigureDiamond(diamond, desc)
+	Skin.StyleDiamond(diamond.art, desc.radius, desc.hollow)
+	Skin.SetDiamondPause(diamond.art, desc.glyph == "pause")
+	-- A held ranged diamond's outline turns amber.
+	Skin.SetDiamondColor(diamond.art, desc.hollow and BORDER_COLORS[desc.border] or desc.color)
+	diamond.alphaValue, diamond.fadeAlpha = desc.alpha or 1, nil
+	diamond:SetAlpha(diamond.alphaValue)
+end
+
+-- The outline's edges are a whole screen pixel thick (a thinner one can
+-- vanish under the pixel grid).
+local function ConfigureOutline(outline, desc)
+	local size, line = desc.size, Util.PixelSize(frame, 1)
+	if outline.size ~= size or outline.line ~= line then
+		outline.size, outline.line = size, line
+		outline:SetSize(size, size)
+		local edges = outline.edges
+		edges[1]:SetHeight(line)
+		edges[2]:SetHeight(line)
+		edges[3]:SetWidth(line)
+		edges[4]:SetWidth(line)
+	end
+end
+
 local function ConfigureBar(bar, desc)
-	local thickness = max(Layout.iconSize * BAR_HEIGHT_RATIO, 3)
+	local thickness = desc.thickness or max(Layout.iconSize * BAR_HEIGHT_RATIO, 3)
 	if bar.style ~= Layout.style or bar.thickness ~= thickness then
 		bar.style, bar.thickness = Layout.style, thickness
 		local native = Skin.Native("bar", "barBG")
@@ -302,14 +399,29 @@ local function ConfigureBar(bar, desc)
 		bar.native = native
 		bar.colorRef = nil -- SetAtlas / SetTexture keep the tint, but re-apply it once
 	end
-	local color = desc.color
-	if bar.colorRef ~= color then
-		bar.colorRef = color
+	-- The unelapsed span is the elapsed color's grey unless the descriptor
+	-- gives its own.
+	local color, rest = desc.color, desc.unelapsedColor
+	if bar.colorRef ~= color or bar.restRef ~= rest then
+		bar.colorRef, bar.restRef = color, rest
+		-- A texture's alpha is one value (SetAlpha replaces SetVertexColor's):
+		-- the colors go in opaque, the alpha (base times fade) after them.
 		local r, g, b, a = color[1], color[2], color[3], color[4] or 1
-		bar.elapsed:SetVertexColor(r, g, b, a)
-		local gr, gg, gb = Util.Gray(r, g, b)
-		bar.unelapsed:SetVertexColor(gr, gg, gb, a * 0.8)
+		bar.elapsed:SetVertexColor(r, g, b, 1)
+		bar.elapsedAlpha = a
+		if rest then
+			bar.unelapsed:SetVertexColor(rest[1], rest[2], rest[3], 1)
+			bar.restAlpha = rest[4] or 1
+		else
+			local gr, gg, gb = Util.Gray(r, g, b)
+			bar.unelapsed:SetVertexColor(gr, gg, gb, 1)
+			bar.restAlpha = a * 0.8
+		end
 	end
+	bar.fadeAlpha = nil
+	bar.bg:SetAlpha(1)
+	bar.elapsed:SetAlpha(bar.elapsedAlpha)
+	bar.unelapsed:SetAlpha(bar.restAlpha)
 end
 
 -- ---------------------------------------------------------------------------
@@ -327,10 +439,17 @@ end
 -- moving a widget needs no ClearAllPoints (the anchor rule); an unmoved one
 -- is skipped. `along` is the time-axis offset, `across` the across-lane
 -- shake offset - never a time offset.
-local function Anchor(widget, along, across)
-	if widget.x ~= along or widget.y ~= across then
-		widget.x, widget.y = along, across
-		widget:SetPoint("CENTER", widget.laneFrame, Layout.orient.start, Layout:Offsets(along, across))
+-- A scaled widget (the next mark grows) takes its offsets in its own scale.
+local function Anchor(widget, along, across, scale)
+	if scale then
+		along, across = along / scale, across / scale
+	end
+	-- The same offsets land elsewhere in another orientation: a widget that
+	-- does not move (a ready-row slot) must still re-anchor when it turns.
+	local orient = Layout.orient
+	if widget.x ~= along or widget.y ~= across or widget.orient ~= orient then
+		widget.x, widget.y, widget.orient = along, across, orient
+		widget:SetPoint("CENTER", widget.laneFrame, orient.start, Layout:Offsets(along, across))
 	end
 end
 
@@ -362,6 +481,42 @@ local function ResolveTime(desc, now)
 	return t, false
 end
 
+-- How far a growing mark has grown toward `ratio`: it starts in its last
+-- TRAIL_ONSET seconds before the now line and is full size there.
+-- How far a mark is into its last TRAIL_ONSET seconds: 0 before, 1 on the now line.
+local function Approach(lead)
+	return min(max(1 - lead / TRAIL_ONSET, 0), 1)
+end
+
+local function Growth(ratio, lead)
+	return 1 + (ratio - 1) * Approach(lead)
+end
+
+-- Single lane: a happened mark fades over the past window (1 at its instant,
+-- 0 a past window later).
+local function FadeFactor(t, now)
+	return min(max(1 - (now - t) * Layout.invPast, 0), 1)
+end
+
+-- Scales the widget's base alpha by its fade; an unchanged alpha costs nothing.
+local function ApplyFade(widget, t, now)
+	local a = FadeFactor(t, now) * widget.alphaValue
+	if widget.fadeAlpha ~= a then
+		widget.fadeAlpha = a
+		widget:SetAlpha(a)
+	end
+end
+
+local function ApplyBarFade(bar, tEnd, now)
+	local a = FadeFactor(tEnd, now)
+	if bar.fadeAlpha ~= a then
+		bar.fadeAlpha = a
+		bar.bg:SetAlpha(a)
+		bar.elapsed:SetAlpha(a * bar.elapsedAlpha)
+		bar.unelapsed:SetAlpha(a * bar.restAlpha)
+	end
+end
+
 -- The next predicted mark's trail, fading in over its last TRAIL_ONSET
 -- seconds; none while pinned at either end.
 local function PlaceTrail(mark, t, pinned, now)
@@ -380,14 +535,39 @@ local function PlaceTrail(mark, t, pinned, now)
 	end
 end
 
-local function PlaceMark(mark, now)
-	local t, pinned = ResolveTime(mark.desc, now)
-	if not t then
-		SetVisible(mark, false)
-		return
+-- Marks and diamonds: grow toward the now line, sit `across` the track (plus a
+-- shake) and fade. A fixed place (a ready-row slot: `t` nil) neither grows
+-- nor fades.
+local function PlaceScaled(widget, desc, along, t, now)
+	local scale = (desc.grow and t) and Growth(desc.grow, t - now) or 1
+	SetWidgetScale(widget, scale)
+	local shake = desc.shake
+	Anchor(widget, along, (desc.across or 0) + (shake and ShakeOffset(shake, now) or 0), scale ~= 1 and scale or nil)
+	if desc.fade and t then
+		ApplyFade(widget, t, now)
+	elseif desc.farAlpha and t then
+		-- Dimmer while far, brightening as it grows.
+		local a = desc.farAlpha + (1 - desc.farAlpha) * Approach(t - now)
+		if widget.fadeAlpha ~= a then
+			widget.fadeAlpha = a
+			widget:SetAlpha(a)
+		end
 	end
-	local shake = mark.desc.shake
-	Anchor(mark, Layout:TimeToOffset(t, now), shake and ShakeOffset(shake, now) or 0)
+end
+
+local function PlaceMark(mark, now)
+	local desc = mark.desc
+	-- A ready-row slot (`along`) is a fixed place, not an instant: never
+	-- pinned, so the chevron of a track icon this widget was is hidden.
+	local t, pinned = nil, false
+	if not desc.along then
+		t, pinned = ResolveTime(desc, now)
+		if not t then
+			SetVisible(mark, false)
+			return
+		end
+	end
+	PlaceScaled(mark, desc, desc.along or Layout:TimeToOffset(t, now), t, now)
 	if mark.pinned ~= pinned then
 		mark.pinned = pinned
 		if pinned and mark.chevronStale then
@@ -396,10 +576,29 @@ local function PlaceMark(mark, now)
 		end
 		mark.chevron:SetShown(pinned)
 	end
-	if mark.trailing then
+	if mark.trailing and t then
 		PlaceTrail(mark, t, pinned, now)
 	end
 	SetVisible(mark, true)
+end
+
+-- A Single lane swing diamond: like a mark without the icon art.
+local function PlaceDiamond(diamond, now)
+	local desc = diamond.desc
+	local t = ResolveTime(desc, now)
+	if not t then
+		SetVisible(diamond, false)
+		return
+	end
+	PlaceScaled(diamond, desc, Layout:TimeToOffset(t, now), t, now)
+	SetVisible(diamond, true)
+end
+
+-- A ready-row slot's outline: a fixed place.
+local function PlaceOutline(outline)
+	local desc = outline.desc
+	Anchor(outline, desc.along, desc.across or 0)
+	SetVisible(outline, true)
 end
 
 local function PlaceTick(tick, now)
@@ -408,23 +607,28 @@ local function PlaceTick(tick, now)
 		SetVisible(tick, false)
 		return
 	end
-	Anchor(tick, Layout:TimeToOffset(t, now), 0)
+	Anchor(tick, Layout:TimeToOffset(t, now), tick.desc.across or 0)
+	if tick.desc.fade then
+		ApplyFade(tick, t, now)
+	end
 	SetVisible(tick, true)
 end
 
--- A span from `from` to `to` along the lane's axis; its start edge (the
--- past end) is anchored, so the anchor name stays the orientation's start.
-local function PlaceSpan(texture, laneFrame, from, to, now, thickness)
+-- A span from `from` to `to` along the lane's axis, `across` off its middle
+-- line; its start edge (the past end) is anchored, so the anchor name stays
+-- the orientation's start.
+local function PlaceSpan(texture, laneFrame, from, to, now, thickness, across)
 	if to <= from then
 		SetVisible(texture, false)
 		return
 	end
 	local along = Layout:TimeToOffset(from, now)
 	local length = max((to - from) * Layout.pxPerSec, 1)
-	if texture.x ~= along then
-		texture.x = along
+	across = across or 0
+	if texture.x ~= along or texture.across ~= across then
+		texture.x, texture.across = along, across
 		local start = Layout.orient.start
-		texture:SetPoint(start, laneFrame, start, Layout:Offsets(along, 0))
+		texture:SetPoint(start, laneFrame, start, Layout:Offsets(along, across))
 	end
 	if texture.width ~= length then
 		texture.width = length
@@ -437,12 +641,18 @@ local function PlaceBar(bar, now)
 	local desc = bar.desc
 	local from = max(desc.tStart, Layout:CullEdge(now))
 	local to = min(desc.tEnd, Layout:FarEdge(now))
-	local laneFrame, thickness = bar.laneFrame, bar.thickness
-	if bar.native then
-		PlaceSpan(bar.bg, laneFrame, from, to, now, thickness)
+	local laneFrame, thickness, across = bar.laneFrame, bar.thickness, desc.across
+	if desc.fade then
+		ApplyBarFade(bar, desc.tEnd, now)
 	end
-	PlaceSpan(bar.elapsed, laneFrame, from, min(to, now), now, thickness)
-	PlaceSpan(bar.unelapsed, laneFrame, max(from, now), to, now, thickness)
+	-- The Single lane GCD band has no backing.
+	if bar.native and not desc.band then
+		PlaceSpan(bar.bg, laneFrame, from, to, now, thickness, across)
+	else
+		SetVisible(bar.bg, false)
+	end
+	PlaceSpan(bar.elapsed, laneFrame, from, min(to, now), now, thickness, across)
+	PlaceSpan(bar.unelapsed, laneFrame, max(from, now), to, now, thickness, across)
 end
 
 -- ---------------------------------------------------------------------------
@@ -452,18 +662,28 @@ end
 -- A lane's track: Native the two line segments meeting at the now line,
 -- Flat one 1 px line in the track color. The art is set when the skin or
 -- orientation changed; the geometry on every layout pass.
-local function LayoutTrack(laneFrame, native, thickness)
+local function LayoutTrack(laneFrame, native, thickness, alpha, drawn)
+	-- Single lane: only one lane frame draws the shared track.
+	if not drawn then
+		if laneFrame.trackStyle ~= false then
+			laneFrame.trackStyle = false
+			laneFrame.track:Hide()
+			laneFrame.trackStart:Hide()
+			laneFrame.trackEnd:Hide()
+		end
+		return
+	end
 	local trackEnd = Layout.future * Layout.pxPerSec
 	local trackStart = Layout.nowX - Layout.padStart
-	if laneFrame.trackStyle ~= Layout.style then
-		laneFrame.trackStyle = Layout.style
+	if laneFrame.trackStyle ~= Layout.style or laneFrame.trackAlpha ~= alpha then
+		laneFrame.trackStyle, laneFrame.trackAlpha = Layout.style, alpha
 		if native then
 			laneFrame.trackStart:SetAtlas(ATLAS.lineStart)
 			laneFrame.trackEnd:SetAtlas(ATLAS.lineEnd)
 			Layout:OrientTexCoord(laneFrame.trackStart)
 			Layout:OrientTexCoord(laneFrame.trackEnd)
 		else
-			laneFrame.track:SetColorTexture(TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3], TRACK_COLOR[4])
+			laneFrame.track:SetColorTexture(TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3], alpha)
 		end
 		laneFrame.track:SetShown(not native)
 		laneFrame.trackStart:SetShown(native)
@@ -480,17 +700,23 @@ end
 local function ApplyLayout()
 	Layout:Compute()
 	local lanes = Layout:Lanes()
-	frame:SetSize(Layout:Extents(Layout.width, max(Layout.height, 1)))
+	frame:SetSize(Layout:Extents(Layout.frameWidth, max(Layout.height, 1)))
 	frame:SetScale(Addon:GetSetting("scale"))
-	local bandAlpha = Addon:GetSetting("backgroundAlpha")
+	-- Single lane: one dark panel behind everything instead of a band per lane.
+	local backdropAlpha = Layout.single and Addon:GetSetting("singleBackgroundAlpha") or 0
+	backdrop:SetColorTexture(BACKDROP_COLOR[1], BACKDROP_COLOR[2], BACKDROP_COLOR[3], backdropAlpha)
+	backdrop:SetShown(backdropAlpha > 0)
+	local bandAlpha = Layout.single and 0 or Addon:GetSetting("backgroundAlpha")
 	-- The track's skin-wide choices, once for every lane.
 	local nativeTrack = Skin.Native("lineStart", "lineEnd")
 	local trackThickness
 	if nativeTrack then
 		trackThickness = select(2, Util.AtlasSize(ATLAS.lineStart, 0, 8))
 	else
-		trackThickness = Util.PixelSize(frame, 1)
+		trackThickness = Util.PixelSize(frame, Layout.single and 2 or 1)
 	end
+	local trackAlpha = Layout.single and SINGLE_TRACK_ALPHA or TRACK_COLOR[4]
+	local trackLane -- Single lane: the first track lane, which draws the track
 	for i, lane in ipairs(lanes) do
 		local laneFrame = laneFrames[i]
 		if not laneFrame then
@@ -499,10 +725,15 @@ local function ApplyLayout()
 		end
 		laneFrame:ClearAllPoints()
 		laneFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", Layout:CrossOffsets(Layout:LaneOffset(i)))
-		laneFrame:SetSize(Layout:Extents(Layout.width, Layout.laneHeight))
+		laneFrame:SetSize(Layout:Extents(Layout.frameWidth, Layout.laneExtents[i]))
+		local drawn = true
+		if Layout.single and lane.group ~= "sink" then
+			drawn = trackLane == nil
+			trackLane = trackLane or lane
+		end
 		laneFrame.band:SetColorTexture(1, 1, 1, bandAlpha)
-		laneFrame.band:SetShown(bandAlpha > 0)
-		LayoutTrack(laneFrame, nativeTrack, trackThickness)
+		laneFrame.band:SetShown(drawn and bandAlpha > 0)
+		LayoutTrack(laneFrame, nativeTrack, trackThickness, trackAlpha, drawn)
 		laneFrame:Show()
 		lane.frame = laneFrame
 	end
@@ -518,50 +749,107 @@ end
 
 local function RebuildLane(lane, now)
 	local laneFrame = lane.frame
-	local marks, ticks, bars = laneFrame.marks, laneFrame.ticks, laneFrame.bars
+	local marks, diamonds, outlines, ticks, bars = laneFrame.marks, laneFrame.diamonds, laneFrame.outlines, laneFrame.ticks, laneFrame.bars
 	marks:BeginReuse()
+	diamonds:BeginReuse()
+	outlines:BeginReuse()
 	ticks:BeginReuse()
 	bars:BeginReuse()
 	wipe(scratch)
 	lane:Collect(now, scratch)
+	local single = Layout.single
+	if single then
+		SingleLane.Prepare(lane, scratch)
+	end
 	-- The lane's next predicted mark (the earliest, not a chain mark, not on
-	-- the now line) is the one that trails.
+	-- the now line) is the one that trails. Single lane: it grows instead.
 	local nextDesc
 	for i = 1, #scratch do
 		local desc = scratch[i]
-		if desc.predicted and not desc.chain and not desc.atNow and (not nextDesc or desc.t < nextDesc.t) then
+		if not single and desc.predicted and not desc.chain and not desc.atNow and (not nextDesc or desc.t < nextDesc.t) then
 			nextDesc = desc
 		end
 	end
 	for i = 1, #scratch do
 		local desc = scratch[i]
-		local shape = desc.shape
-		local widget
-		if shape == "bar" then
-			widget = bars:Take()
-			ConfigureBar(widget, desc)
-		elseif shape == "tick" then
-			widget = ticks:Take()
-			ConfigureTick(widget, desc)
-		else
-			widget = marks:Take()
-			ConfigureMark(widget, desc)
-			local trailing = desc == nextDesc
-			if widget.trailing and not trailing then
-				widget.trail:Hide()
-				widget.trailShown = nil
+		if not single or SingleLane.Adapt(lane, desc) then
+			local shape = desc.shape
+			local widget
+			if shape == "bar" then
+				widget = bars:Take()
+				ConfigureBar(widget, desc)
+			elseif shape == "tick" then
+				widget = ticks:Take()
+				ConfigureTick(widget, desc)
+			elseif shape == "diamond" then
+				widget = diamonds:Take()
+				ConfigureDiamond(widget, desc)
+			elseif shape == "outline" then
+				widget = outlines:Take()
+				ConfigureOutline(widget, desc)
+			else
+				widget = marks:Take()
+				ConfigureMark(widget, desc)
+				local trailing = desc == nextDesc
+				if widget.trailing and not trailing then
+					widget.trail:Hide()
+					widget.trailShown = nil
+				end
+				widget.trailing = trailing
 			end
-			widget.trailing = trailing
+			widget.desc, widget.laneFrame = desc, laneFrame
 		end
-		widget.desc, widget.laneFrame = desc, laneFrame
 	end
 	marks:Trim()
+	diamonds:Trim()
+	outlines:Trim()
 	ticks:Trim()
 	bars:Trim()
 	lane.dirty = false
 	lane.builtVersion = Store:LaneVersion(lane.key)
 	-- Jittered, so the lanes' safety passes do not all land on one frame.
 	lane.nextRebuild = now + SAFETY_REBUILD * (0.75 + 0.5 * random())
+end
+
+-- Single lane: the cooldown icons that would overlap step off the track. One
+-- pass over every spell lane's returns (and the in-flight cast's icon, which
+-- holds the track), run whenever a lane was rebuilt.
+local steps = {}
+local function ByPosition(a, b)
+	return a.x < b.x
+end
+
+local function StepMarks(now)
+	local count = 0
+	local lanes = Layout:Lanes()
+	for i = 1, #lanes do
+		local lane = lanes[i]
+		if lane.group == "spell" or lane.group == "cast" then
+			local used = lane.frame.marks.used
+			for j = 1, #used do
+				local desc = used[j].desc
+				if desc.stepper or desc.occupant then
+					local t = ResolveTime(desc, now)
+					if t then
+						count = count + 1
+						local item = steps[count]
+						if not item then
+							item = {}
+							steps[count] = item
+						end
+						item.desc, item.x, item.fixed = desc, Layout:TimeToOffset(t, now), desc.occupant
+					end
+				end
+			end
+		end
+	end
+	for i = #steps, count + 1, -1 do
+		steps[i] = nil
+	end
+	if count > 0 then
+		table.sort(steps, ByPosition)
+		SingleLane.Step(steps, count)
+	end
 end
 
 local function Record(samples, value)
@@ -586,11 +874,22 @@ local function OnUpdate()
 		end
 	end
 	allDirty = false
+	if rebuilt and Layout.single then
+		StepMarks(now)
+	end
 	for i = 1, #lanes do
 		local laneFrame = lanes[i].frame
 		local used = laneFrame.marks.used
 		for j = 1, #used do
 			PlaceMark(used[j], now)
+		end
+		used = laneFrame.diamonds.used
+		for j = 1, #used do
+			PlaceDiamond(used[j], now)
+		end
+		used = laneFrame.outlines.used
+		for j = 1, #used do
+			PlaceOutline(used[j])
 		end
 		used = laneFrame.ticks.used
 		for j = 1, #used do
@@ -617,7 +916,7 @@ end
 -- Evaluated by the sweep while hidden, so it reads the setting, not Layout.
 function Renderer:IsActive(now)
 	local latest = Store:Latest()
-	if latest and latest.time >= now - Addon:GetSetting("pastWindow") then
+	if latest and latest.time >= now - (Addon:GetWindow()) then
 		return true
 	end
 	for _, lane in ipairs(Layout:Lanes()) do
@@ -651,7 +950,12 @@ function Renderer:UpdateVisibility()
 end
 
 local function Sweep()
-	Store:Prune(GetTime() - Addon:GetSetting("pastWindow") - STORE_MARGIN)
+	Store:Prune(GetTime() - (Addon:GetWindow()) - STORE_MARGIN)
+	-- Single lane: a cooldown that turned out long (or a lane that came or
+	-- went) renumbers the ready row's slots.
+	if Layout.single and SingleLane.SlotsChanged(Layout:Lanes()) then
+		layoutDirty = true
+	end
 	Renderer:UpdateVisibility()
 end
 
@@ -697,7 +1001,7 @@ function Renderer:Perf()
 	for i = 1, #lanes do
 		local laneFrame = lanes[i].frame
 		if laneFrame then
-			widgets = widgets + #laneFrame.marks.used + #laneFrame.ticks.used + #laneFrame.bars.used
+			widgets = widgets + #laneFrame.marks.used + #laneFrame.diamonds.used + #laneFrame.outlines.used + #laneFrame.ticks.used + #laneFrame.bars.used
 		end
 	end
 	return Summarize(perfSteady), Summarize(perfRebuild), Summarize(perfLayout), widgets, #lanes
@@ -716,7 +1020,10 @@ end
 -- Each lane frame and its track line as the client sees them, for
 -- /actiontimeline debug layout (bug reports on the skins and orientations).
 function Renderer:DebugLayout()
-	local out = { string.format("skin %s, orientation %s, scale %.2f, pad %d", tostring(Layout.skin), tostring(Layout.orient.start), frame:GetEffectiveScale(), Layout.crossPad or 0) }
+	local out = { string.format("%s layout, skin %s, orientation %s, scale %.2f, pad %d", Layout.single and "single lane" or "detailed", tostring(Layout.skin), tostring(Layout.orient.start), frame:GetEffectiveScale(), Layout.crossPad or 0) }
+	if Layout.single then
+		out[#out + 1] = string.format("track %.0f px, %d ready slots (%s side), frame %.0f wide", Layout.trackExtent, Layout.slotCount, tostring(Layout.readyRowSide), Layout.frameWidth)
+	end
 	for i, lane in ipairs(Layout:Lanes()) do
 		local laneFrame = lane.frame
 		if laneFrame then
@@ -745,6 +1052,9 @@ function Renderer:Init()
 	frame:SetPoint("CENTER", UIParent, "CENTER", 0, -180)
 	frame:SetFrameStrata("MEDIUM")
 	frame:EnableMouse(false)
+	backdrop = frame:CreateTexture(nil, "BACKGROUND")
+	backdrop:SetAllPoints()
+	backdrop:Hide()
 	if frame.SetClipsChildren then
 		frame:SetClipsChildren(true)
 	end

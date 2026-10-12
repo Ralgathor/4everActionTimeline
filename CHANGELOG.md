@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- M8 Single lane layout (ADR-0005), the new default, beside the Detailed
+  layout (M7, unchanged): every lane kind except the engine-drawn lanes on
+  one track around the now line, for reading at a glance. Swings are
+  diamonds (main hand above the track, off hand below, ranged hollow; the
+  next landing full color and growing as it nears the now line, one
+  desaturated chain diamond, a queued ability as its icon, a pause glyph
+  on a paused hand, a dim diamond for a parked one); casts are a gold bar
+  with the spell icon at its end; the GCD a faint band behind the track;
+  every happened mark fades over the past window. Returning cooldowns ride
+  the track, grow as they near the now line and step off it to clear each
+  other; ready spells fill fixed slots in a ready row under the track (on
+  the past or the future side), tinted like the action bar, a cooling spell
+  leaving its slot an empty outline and a return flashing a ring. Long
+  cooldowns (30 s or more, tagged in the class data, or flagged in the lane
+  window) get no slot: they ride the track to the far edge and a ring
+  flashes on the now line when they return. Each layout keeps its own past
+  and future window (Single lane 1.5 s / 10 s); the engine-drawn lanes
+  become thin rows below the ready row. Layout and ready row side in the
+  Settings category, a Long column in the lane window. Test mode's ranged
+  hand now alternates swinging and paused, and Charge is a long cooldown.
+  The look follows the layout study mock-up: a dark backdrop panel behind
+  the whole layout (Settings: Backdrop), outlined swing diamonds in both
+  skins, a warm now line with a diamond on top, a blue GCD band, distant
+  marks dimmer than the ones about to happen, and a longer default length
+  (700 px) so 10 s of future has room. Length is now kept per layout, like
+  the windows.
+
 - M7 skins and orientations: the Native skin (default) — Blizzard's
   timeline track segments, the cooldown-divider now line with its pip,
   Cooldown Manager–framed icons (mask and overlay, tinted red or amber for

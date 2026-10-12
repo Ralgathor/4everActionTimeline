@@ -12,7 +12,7 @@
 -- count is reported when test mode ends. It doubles as the user demo.
 
 local Addon = FourEverActionTimeline
-local Util, Layout, Store, Renderer = Addon.Util, Addon.Layout, Addon.Store, Addon.Renderer
+local Util, Layout, Store, Renderer, Effects = Addon.Util, Addon.Layout, Addon.Store, Addon.Renderer, Addon.Effects
 
 local GetTime = GetTime
 local floor, max = math.floor, math.max
@@ -24,12 +24,12 @@ local OVERDUE_EVERY, OVERDUE_DELAY = 6, 1.0 -- landing k (k % 6 == 5) lands 1 s 
 local CLIP_EVERY = 6 -- a clip tick before landing k (k % 6 == 2)
 local QUEUED_ICON_SPELL = 78 -- Heroic Strike, queued on every other swing
 local PAUSED_ICON_SPELL = 75 -- Auto Shot, the paused ranged hand's icon
-local PAUSED_LEFT, PAUSED_SPEED = 1.4, 2.8 -- the paused ranged hand's frozen swing
+local PAUSED_SPEED = 2.8 -- the test ranged hand's swing
 local GCD_PERIOD, GCD = 3.2, Addon.PROBES.gcd
 local CAST_PERIOD, CAST_TIME, CAST_STOP_AT = 6.0, 2.0, 1.2
 local SECRET_EVERY = 10
 
-local TestMode = {}
+local TestMode = { cycleRanged = true }
 Addon.TestMode = TestMode
 
 local t0, ticker, weaponIcon
@@ -52,6 +52,9 @@ local Happened = Layout.CollectHappened
 local function SyncPhase(lane, now)
 	local phase = lane:Phase(now)
 	if phase ~= lane.phase then
+		if lane.phase == "cooling" and phase == "idle" then
+			Effects:Ring(lane) -- a cooldown came back (Single lane)
+		end
 		lane.phase = phase
 		Renderer:MarkDirty(lane)
 	end
@@ -62,7 +65,7 @@ end
 -- (desaturated), an overdue landing every sixth swing and a clip tick.
 -- ---------------------------------------------------------------------------
 
-local mainHand = { key = "test-mainhand", group = "hand", order = 1 }
+local mainHand = { key = "test-mainhand", group = "hand", order = 1, hand = "mainhand" }
 
 local function Expected(k)
 	return t0 + k * SWING
@@ -84,7 +87,9 @@ function mainHand:Advance(now)
 		Ingest({ kind = "clip", lane = self.key, shape = "tick", time = Expected(k) - 1.2 })
 	end
 	if Landing(k) <= now then
-		Ingest({ kind = "swing", lane = self.key, time = Landing(k), icon = weaponIcon })
+		-- Every other swing carries the queued ability, as it is predicted to.
+		local queued = k % 2 == 0
+		Ingest({ kind = "swing", lane = self.key, time = Landing(k), icon = queued and SpellIcon(QUEUED_ICON_SPELL) or weaponIcon, onSwing = queued or nil })
 		self.nextLanding = k + 1
 	end
 end
@@ -101,7 +106,7 @@ end
 -- Off hand: parked (dim weapon icon at the now line).
 -- ---------------------------------------------------------------------------
 
-local offHand = { key = "test-offhand", group = "hand", order = 2 }
+local offHand = { key = "test-offhand", group = "hand", order = 2, hand = "offhand" }
 
 function offHand:Reset() end
 
@@ -112,20 +117,65 @@ function offHand:Collect(_, out)
 end
 
 -- ---------------------------------------------------------------------------
--- Ranged: paused (frozen, dimmed marks ahead of the now line).
+-- Ranged: swinging, then paused (frozen, dimmed marks ahead of the now line),
+-- in a repeating cycle - so the paused look is checked without a hand that
+-- never moves. TestMode.cycleRanged = false holds it paused (the harness).
 -- ---------------------------------------------------------------------------
 
-local ranged = { key = "test-ranged", group = "hand", order = 3 }
+local ranged = { key = "test-ranged", group = "hand", order = 3, hand = "ranged" }
+local RANGED_CYCLE, RANGED_SWINGING = 10, 6 -- seconds; the swings land 2.8 s apart
+-- What is left of the third swing when the cycle pauses the hand.
+local PAUSED_LEFT = 3 * PAUSED_SPEED - RANGED_SWINGING
 
-function ranged:Reset() end
+-- The cycle's start and our place in it; the held-paused mode sits at the
+-- first paused instant.
+local function RangedPhase(now)
+	if not TestMode.cycleRanged then
+		return t0, RANGED_SWINGING
+	end
+	local elapsed = now - t0
+	local cycle = floor(elapsed / RANGED_CYCLE)
+	return t0 + cycle * RANGED_CYCLE, elapsed - cycle * RANGED_CYCLE, cycle
+end
 
-function ranged:Advance() end
+function ranged:Reset()
+	self.lastLanded = 0 -- the newest swing ingested (cycle * RANGED_CYCLE + k)
+end
 
-function ranged:Collect(_, out)
+function ranged:Phase(now)
+	local _, place = RangedPhase(now)
+	return place < RANGED_SWINGING and "swinging" or "paused"
+end
+
+function ranged:Advance(now)
+	local start, place, cycle = RangedPhase(now)
+	if place < RANGED_SWINGING then
+		for k = 1, 2 do
+			local at, key = start + k * PAUSED_SPEED, cycle * RANGED_CYCLE + k
+			if at <= now and key > self.lastLanded then
+				self.lastLanded = key
+				Ingest({ kind = "swing", lane = self.key, time = at, icon = SpellIcon(PAUSED_ICON_SPELL) })
+			end
+		end
+	end
+	SyncPhase(self, now)
+end
+
+function ranged:Collect(now, out)
+	Happened(self, now, out)
+	local start, place = RangedPhase(now)
+	local icon = SpellIcon(PAUSED_ICON_SPELL)
+	if place < RANGED_SWINGING then
+		local expected = start + (floor(place / PAUSED_SPEED) + 1) * PAUSED_SPEED
+		out[#out + 1] = { t = expected, icon = icon, predicted = true }
+		Layout.AppendChain(out, expected, PAUSED_SPEED, icon, now)
+		return
+	end
+	-- Paused: what was left of the swing when it froze, kept ahead of the now line.
 	local horizon = Layout.future + PAUSED_SPEED
-	local n = 0
-	while PAUSED_LEFT + n * PAUSED_SPEED <= horizon do
-		out[#out + 1] = { atNow = true, after = PAUSED_LEFT + n * PAUSED_SPEED, icon = SpellIcon(PAUSED_ICON_SPELL), dim = true, desaturated = n > 0, chain = n > 0, paused = true }
+	local n, depth = 0, Layout.chainDepth
+	while n <= depth and PAUSED_LEFT + n * PAUSED_SPEED <= horizon do
+		out[#out + 1] = { atNow = true, after = PAUSED_LEFT + n * PAUSED_SPEED, icon = icon, dim = true, desaturated = n > 0, chain = n > 0, paused = true }
 		n = n + 1
 	end
 end
@@ -180,7 +230,7 @@ function cast:Advance(now)
 	local stops = CastStops(k)
 	local finish = start + (stops and CAST_STOP_AT or CAST_TIME)
 	if finish <= now then
-		Ingest({ kind = "cast", lane = self.key, time = finish, icon = self.icon, border = stops and "red" or nil })
+		Ingest({ kind = "cast", lane = self.key, time = finish, icon = self.icon, border = stops and "red" or nil, castStart = start })
 		self.next = k + 1
 	end
 	SyncPhase(self, now)
@@ -190,9 +240,14 @@ function cast:Collect(now, out)
 	Happened(self, now, out)
 	local start = CastStart(self.next)
 	if start <= now then
-		-- The in-flight cast: its icon rides the now line, and its completion
-		-- is full color (the live cast-time read is plain, probe 11).
-		out[#out + 1] = { atNow = true, icon = self.icon }
+		-- The in-flight cast: its icon rides the now line (Single lane: a bar
+		-- from its start), and its completion is full color (the live
+		-- cast-time read is plain, probe 11).
+		if Layout.castBars then
+			out[#out + 1] = { shape = "bar", tStart = start, tEnd = start + CAST_TIME }
+		else
+			out[#out + 1] = { atNow = true, icon = self.icon }
+		end
 		out[#out + 1] = { t = start + CAST_TIME, icon = self.icon, predicted = true }
 	end
 end
@@ -210,6 +265,11 @@ end
 -- predicted mark while cooling.
 local function SpellLane(key, order, spellID, period, offset, cooldown, idleLook, unknown)
 	local lane = { key = key, group = "spell", order = order }
+
+	-- A cooldown of 30 s or more is long, as for a real spell.
+	function lane:IsLong()
+		return cooldown >= Addon.Spells.LONG_COOLDOWN
+	end
 
 	local function CastTime(k)
 		return t0 + offset + k * period

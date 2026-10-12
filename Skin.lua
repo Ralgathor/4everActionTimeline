@@ -17,8 +17,14 @@ local Addon = FourEverActionTimeline
 local Util, Layout = Addon.Util, Addon.Layout
 
 local ICON_CROP = Util.ICON_CROP
+local max, sqrt, pi = math.max, math.sqrt, math.pi
+local SQRT2 = sqrt(2)
 local BLACK = { 0, 0, 0, 1 }
 local NOW_COLOR = { 1, 1, 1, 0.6 }
+-- Single lane: the now line is warm and brighter, with a small diamond at its
+-- lane-start end (Native has Blizzard's pip there; Flat draws one).
+local NOW_COLOR_SINGLE = { 0.91, 0.85, 0.66, 0.75 }
+local FLAT_PIP_ROOM = 5 -- the Flat pip reaches 2.5 line widths past the line's end
 -- The cooldown divider draws its line this far inside its end-facing edge
 -- (atlas pixels, measured in game on build 70235).
 local DIVIDER_LINE_INSET = 5
@@ -74,6 +80,8 @@ function Skin.CrossPad(iconSize)
 	if Skin.Native("pip") then
 		local width, height = Util.AtlasSize(ATLAS.pip, 0, 0)
 		pad = math.max(pad, math.ceil(math.max(width, height) / 2))
+	elseif Layout.single then
+		pad = math.max(pad, FLAT_PIP_ROOM)
 	end
 	return math.max(pad, 0)
 end
@@ -99,6 +107,44 @@ end
 -- divider art draws its line near its end-facing edge (Blizzard anchors it
 -- by "END"), so Native anchors that edge just past the now instant, the
 -- line itself on it, and centers the pip on the line; Flat is centered.
+-- Flat Single lane: a stepped diamond on the now line's lane-start end, five
+-- bars 1-3-5-3-1 line widths wide and one line width deep (as wide as it is
+-- tall). Odd multiples of the line width, every bar snaps to the screen
+-- pixels exactly as the line does, so it sits square on the line at any
+-- scale (a turned square is drawn centred on a pixel while an even-width
+-- line is centred between two).
+local PIP_STEPS = { 1, 3, 5, 3, 1 }
+
+local function StylePipSteps(pip, nowLine, point, thickness, shown)
+	local steps = pip.steps
+	if not shown then
+		if steps then
+			for _, bar in ipairs(steps) do
+				bar:Hide()
+			end
+		end
+		return
+	end
+	if not steps then
+		steps = {}
+		local parent = pip:GetParent()
+		for i = 1, #PIP_STEPS do
+			steps[i] = parent:CreateTexture(nil, "OVERLAY", nil, 1)
+			steps[i]:SetTexture(Util.WHITE)
+		end
+		pip.steps = steps
+	end
+	local middle = (#PIP_STEPS + 1) / 2
+	for i, width in ipairs(PIP_STEPS) do
+		local bar = steps[i]
+		bar:SetVertexColor(NOW_COLOR_SINGLE[1], NOW_COLOR_SINGLE[2], NOW_COLOR_SINGLE[3], 1)
+		bar:SetSize(Layout:Extents(width * thickness, thickness))
+		bar:ClearAllPoints()
+		bar:SetPoint("CENTER", nowLine, point, Layout:Offsets(0, (i - middle) * thickness))
+		bar:Show()
+	end
+end
+
 function Skin.StyleNowLine(nowLine, pip, frame)
 	local orient = Layout.orient
 	local native = Skin.Native("divider")
@@ -112,7 +158,8 @@ function Skin.StyleNowLine(nowLine, pip, frame)
 	else
 		nowLine:SetTexture(Util.WHITE)
 		nowLine:SetTexCoord(0, 1, 0, 1)
-		nowLine:SetVertexColor(NOW_COLOR[1], NOW_COLOR[2], NOW_COLOR[3], NOW_COLOR[4])
+		local color = Layout.single and NOW_COLOR_SINGLE or NOW_COLOR
+		nowLine:SetVertexColor(color[1], color[2], color[3], color[4])
 	end
 	nowLine:ClearAllPoints()
 	-- Inward from the lane-start edge by the cross pad.
@@ -120,10 +167,13 @@ function Skin.StyleNowLine(nowLine, pip, frame)
 	nowLine:SetSize(Layout:Extents(thickness, math.max(Layout.lanesExtent, 1)))
 	if native then
 		pip:SetAtlas(ATLAS.pip, true)
+		pip:SetRotation(0)
+		pip:SetVertexColor(1, 1, 1, 1)
 		pip:ClearAllPoints()
 		pip:SetPoint("CENTER", nowLine, point, Layout:Offsets(PIP_NUDGE - inset, 0))
 	end
 	pip:SetShown(native)
+	StylePipSteps(pip, nowLine, point, thickness, not native and Layout.single)
 end
 
 -- ---------------------------------------------------------------------------
@@ -255,4 +305,137 @@ function Skin.SetStates(art, paused, queued)
 		art.pausedIcon:SetShown(paused)
 	end
 	ShowOverlay(art, "queuedOverlay", ATLAS.queued, 0, queued, k)
+end
+
+-- ---------------------------------------------------------------------------
+-- The swing diamond (the Single lane layout)
+-- ---------------------------------------------------------------------------
+
+-- A diamond is a frame the caller anchors and scales, the same in both skins:
+-- a tinted square turned 45 degrees on a dark backing that outlines it, so it
+-- reads against any scene (the pip's own art is no help at this size: its
+-- color and shape are not ours and it has no outline). Hollow (ranged) is four
+-- rotated strokes over a dark, translucent diamond, so its color stands out.
+-- Orientation never changes it.
+function Skin.CreateDiamond(owner)
+	local art = { owner = owner }
+	art.backing = owner:CreateTexture(nil, "ARTWORK", nil, -2)
+	art.backing:SetTexture(Util.WHITE)
+	art.backing:SetRotation(pi / 4)
+	art.backing:SetPoint("CENTER", owner, "CENTER")
+	art.fill = owner:CreateTexture(nil, "ARTWORK", nil, 0)
+	art.fill:SetTexture(Util.WHITE)
+	art.fill:SetRotation(pi / 4)
+	art.fill:SetPoint("CENTER", owner, "CENTER")
+	return art
+end
+
+-- Each stroke: the offset of its midpoint (in half radii) and its rotation.
+local STROKES = {
+	{ 1, 1, -pi / 4 }, { 1, -1, pi / 4 }, { -1, -1, -pi / 4 }, { -1, 1, pi / 4 },
+}
+-- How far the dark backing reaches past the diamond.
+local OUTLINE = 1.5
+
+-- Sizes the diamond to a half diagonal `radius`. The color is re-applied by
+-- the next SetDiamondColor.
+function Skin.StyleDiamond(art, radius, hollow)
+	if art.radius == radius and art.hollow == hollow then
+		return
+	end
+	art.radius, art.hollow, art.color = radius, hollow, nil
+	local owner, fill = art.owner, art.fill
+	owner:SetSize(radius * 2, radius * 2)
+	local reach = (radius + OUTLINE) * SQRT2
+	art.backing:SetSize(reach, reach)
+	art.backing:SetVertexColor(0, 0, 0, hollow and 0.55 or 0.9)
+	if hollow then
+		fill:Hide()
+		if not art.strokes then
+			art.strokes = {}
+			for i = 1, #STROKES do
+				art.strokes[i] = owner:CreateTexture(nil, "ARTWORK", nil, 0)
+				art.strokes[i]:SetTexture(Util.WHITE)
+			end
+		end
+		local length, thickness = radius * SQRT2 + 1, max(radius * 0.3, 1.25)
+		for i, stroke in ipairs(art.strokes) do
+			local def = STROKES[i]
+			stroke:SetSize(length, thickness)
+			stroke:ClearAllPoints()
+			stroke:SetPoint("CENTER", owner, "CENTER", def[1] * radius / 2, def[2] * radius / 2)
+			stroke:SetRotation(def[3])
+			stroke:Show()
+		end
+		return
+	end
+	if art.strokes then
+		for _, stroke in ipairs(art.strokes) do
+			stroke:Hide()
+		end
+	end
+	fill:Show()
+	fill:SetSize(radius * SQRT2, radius * SQRT2)
+end
+
+-- Tints the diamond `color` ({r, g, b}).
+function Skin.SetDiamondColor(art, color)
+	if art.color == color then
+		return
+	end
+	art.color = color
+	local r, g, b = color[1], color[2], color[3]
+	if art.hollow then
+		for _, stroke in ipairs(art.strokes) do
+			stroke:SetVertexColor(r, g, b, 1)
+		end
+	else
+		art.fill:SetVertexColor(r, g, b, 1)
+	end
+end
+
+-- A paused hand's marks are frozen, which alone reads as a stuck diamond: its
+-- next diamond wears a pause glyph on its past side - Native Blizzard's pause
+-- icon, Flat two upright bars.
+local PAUSE_GAP = 3
+function Skin.SetDiamondPause(art, shown)
+	local pause = art.pause
+	if not shown then
+		if pause and art.pauseKey then
+			art.pauseKey = nil
+			pause[1]:Hide()
+			pause[2]:Hide()
+		end
+		return
+	end
+	local key = Layout.style .. ":" .. art.radius
+	if art.pauseKey == key then
+		return
+	end
+	art.pauseKey = key
+	if not pause then
+		pause = { art.owner:CreateTexture(nil, "OVERLAY"), art.owner:CreateTexture(nil, "OVERLAY") }
+		art.pause = pause
+	end
+	local owner, radius, orient = art.owner, art.radius, Layout.orient
+	if Skin.Native("pausedIcon") then
+		local size = radius * 2 + 2
+		pause[1]:SetAtlas(ATLAS.pausedIcon)
+		pause[1]:SetSize(size, size)
+		pause[1]:ClearAllPoints()
+		pause[1]:SetPoint(orient.finish, owner, orient.start, Layout:Offsets(-PAUSE_GAP, 0))
+		pause[1]:Show()
+		pause[2]:Hide()
+		return
+	end
+	local width, height = max(radius * 0.4, 1.5), radius * 1.6
+	for i, bar in ipairs(pause) do
+		bar:SetTexture(Util.WHITE)
+		bar:SetTexCoord(0, 1, 0, 1)
+		bar:SetVertexColor(0.91, 0.93, 0.96, 1)
+		bar:SetSize(width, height)
+		bar:ClearAllPoints()
+		bar:SetPoint("CENTER", owner, "CENTER", Layout:Offsets(-(radius + PAUSE_GAP + width * (i == 1 and 0.5 or 2.5)), 0))
+		bar:Show()
+	end
 end

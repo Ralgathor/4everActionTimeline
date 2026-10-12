@@ -1,7 +1,9 @@
 -- 4everActionTimeline — lane registry and the time axis.
 -- Lane order is fixed by group (hands, then the GCD, then the cast lane,
 -- then spell lanes, then sink lanes - docs/SPEC.md), then by each lane's
--- `order` within its group. Every position is an offset along the time axis
+-- `order` within its group. The Detailed layout stacks one lane per kind;
+-- the Single lane layout (SingleLane.lua) puts every lane but the sink lanes
+-- on one track. Every position is an offset along the time axis
 -- from the axis start (the past end, Layout:TimeToOffset) and an offset
 -- across the lane; Layout.orient turns the pair into a point for the
 -- orientation (VISUAL.md, Orientation): horizontal (past left), horizontal
@@ -30,6 +32,27 @@
 --   queued     the main-hand mark showing a queued ability (Native: the
 --              queued overlay)
 --   color      {r, g, b, a} for bars and ticks
+--   onSwing    a landing that an on-next-swing ability rode (happened marks)
+--   castStart  (store entries) a cast that began earlier: the Single lane
+--              layout also draws its bar
+-- The Single lane layout (SingleLane.Adapt, run by the renderer after Collect)
+-- rewrites a descriptor in place with the fields below, which only it writes
+-- and only the renderer reads - a Collect never sets them, and a descriptor
+-- lives for one rebuild:
+--   shape      adds "diamond" (radius, hollow, color, alpha, glyph "pause")
+--   size       an icon's size in pixels (default the lane's icon size)
+--   across     the offset across the track, plus the shake
+--   along      a fixed place along the axis (a ready-row slot), not an instant
+--   alpha      the widget's base alpha (default 1, or the dim alpha)
+--   fade       a happened mark: fades over the past window
+--   grow       the ratio an icon or diamond grows to over its last 1.5 s
+--   thickness, unelapsedColor, band    a bar's thickness, its own unelapsed
+--              color, and `band` for the GCD band (no backing)
+--   farAlpha   a growing mark's alpha while far; it brightens to 1 as it grows
+--   slot       a ready-row slot's number; shape "outline" is a cooling
+--              spell's empty slot
+--   stepper, occupant    a cooldown icon the stepping pass may offset; the
+--              in-flight cast's icon, which holds the track
 -- Happened marks come from the store through Layout.CollectHappened: an entry
 -- with a `duration` becomes a window bar, any other an icon (or tick) mark.
 
@@ -38,7 +61,7 @@ local Addon = FourEverActionTimeline
 local Layout = {}
 Addon.Layout = Layout
 
-local floor, max, sort, remove = math.floor, math.max, table.sort, table.remove
+local floor, max, sort, remove, wipe = math.floor, math.max, table.sort, table.remove, wipe
 
 local GROUP_ORDER = { hand = 1, gcd = 2, cast = 3, spell = 4, sink = 5 }
 -- Happened marks stay drawn this long past the past edge, so they scroll
@@ -136,17 +159,23 @@ end
 
 -- Geometry, recomputed on every layout pass.
 function Layout:Compute()
-	local past, future = Addon:GetSetting("pastWindow"), Addon:GetSetting("futureWindow")
+	local past, future = Addon:GetWindow()
 	local laneHeight = Addon:GetSetting("laneHeight")
 	local iconSize = laneHeight - 2
 	self.past, self.future = past, future
+	self.single = Addon:GetSetting("layout") == "single"
+	-- How many marks deep the cadence chain goes (nil: fills the window).
+	self.chainDepth = self.single and 1 or math.huge
+	-- Single lane draws a cast as a bar (Casts, CollectHappened).
+	self.castBars = self.single
+	self.invPast = 1 / max(past, 0.1)
 	self.orient = ORIENTATIONS[Addon:GetSetting("orientation")] or ORIENTATIONS.horizontal
 	self.skin = Addon:GetSetting("skin")
 	-- Widgets compare this to re-apply what the skin or orientation decides.
 	self.style = self.skin .. ":" .. Addon:GetSetting("orientation")
 	-- The length along the time axis (the "width" setting, whatever the
 	-- orientation).
-	self.width = Addon:GetSetting("width")
+	self.width = Addon:GetSetting(Addon:LayoutKey("width"))
 	self.laneHeight, self.spacing = laneHeight, Addon:GetSetting("laneSpacing")
 	self.iconSize = iconSize
 	self.chevronSize = max(floor(iconSize / 3 + 0.5), 6)
@@ -156,11 +185,61 @@ function Layout:Compute()
 	self.padEnd = iconSize / 2 + self.chevronSize + 2
 	self.pxPerSec = (self.width - self.padStart - self.padEnd) / (past + future)
 	self.nowX = self.padStart + past * self.pxPerSec
+	self.frameWidth = self.width
+	self.slotCount = 0
+	if self.single then
+		-- The ready row's slots; on the past side the frame widens to fit them.
+		self.readyRowSide = Addon:GetSetting("readyRowSide")
+		local SingleLane = Addon.SingleLane
+		self.slotCount = SingleLane.AssignSlots(lanes)
+		local extra = 0
+		if self.readyRowSide == "past" then
+			extra = max(SingleLane.RowSpan(self.slotCount) - self.nowX, 0)
+		end
+		self.padStart, self.nowX, self.frameWidth = self.padStart + extra, self.nowX + extra, self.width + extra
+	end
 	-- The extent across the lanes, and the frame's: Native art that reaches
 	-- past the outer lanes (the icon overlay, the pip) gets a pad each side.
 	self.crossPad = Addon.Skin.CrossPad(iconSize)
-	self.lanesExtent = #lanes * laneHeight + max(#lanes - 1, 0) * self.spacing
+	self:ComputeRows()
 	self.height = self.lanesExtent + 2 * self.crossPad
+end
+
+-- Each lane's offset across the axis from the frame's lane-start edge (top,
+-- or left when vertical) and its extent, and the lanes' combined extent.
+-- Detailed: one row per lane. Single lane: one track shared by every lane
+-- but the sink lanes, which keep a row each below it.
+function Layout:ComputeRows()
+	local lanes, spacing, laneHeight = lanes, self.spacing, self.laneHeight
+	local offsets, extents = wipe(self.laneOffsets or {}), wipe(self.laneExtents or {})
+	self.laneOffsets, self.laneExtents = offsets, extents
+	local used = 0
+	if self.single then
+		self.trackExtent = Addon.SingleLane.Extent()
+		for i, lane in ipairs(lanes) do
+			if lane.group ~= "sink" then
+				offsets[i], extents[i] = self.crossPad, self.trackExtent
+				used = self.trackExtent
+			end
+		end
+		if self.slotCount > 0 then
+			used = used + (used > 0 and spacing or 0) + Addon.SingleLane.SlotSize()
+		end
+		local sinkRow = Addon.SingleLane.SlotSize()
+		for i, lane in ipairs(lanes) do
+			if lane.group == "sink" then
+				used = used + (used > 0 and spacing or 0)
+				offsets[i], extents[i] = self.crossPad + used, sinkRow
+				used = used + sinkRow
+			end
+		end
+	else
+		for i = 1, #lanes do
+			offsets[i], extents[i] = self.crossPad + (i - 1) * (laneHeight + spacing), laneHeight
+		end
+		used = #lanes * laneHeight + max(#lanes - 1, 0) * spacing
+	end
+	self.lanesExtent = used
 end
 
 -- Offset along the time axis from the axis start (the past end).
@@ -220,10 +299,9 @@ function Layout:FarEdge(now)
 	return now + self.future
 end
 
--- A lane's offset across the axis from the frame's lane-start edge (top,
--- or left when vertical).
+-- The offset of the index-th lane (Compute ran).
 function Layout:LaneOffset(index)
-	return self.crossPad + (index - 1) * (self.laneHeight + self.spacing)
+	return self.laneOffsets[index]
 end
 
 -- The cadence chain after a next landing at t: equal intervals of speed,
@@ -232,8 +310,8 @@ end
 -- the now line while the next landing is overdue (the renderer's max(t, now)).
 function Layout.AppendChain(out, t, speed, icon, now)
 	local horizon = now + Layout.future + speed
-	local n = 1
-	while t + n * speed <= horizon do
+	local n, depth = 1, Layout.chainDepth
+	while n <= depth and t + n * speed <= horizon do
 		out[#out + 1] = { t = t, after = n * speed, icon = icon, predicted = true, desaturated = true, chain = true }
 		n = n + 1
 	end
@@ -253,7 +331,10 @@ function Layout.CollectHappened(lane, now, out)
 					out[#out + 1] = { shape = "bar", tStart = time, tEnd = time + duration, color = entry.color }
 				end
 			elseif time >= cull then
-				out[#out + 1] = { shape = entry.shape, t = time, icon = entry.icon, border = entry.border, color = entry.color, shake = entry.shake }
+				out[#out + 1] = { shape = entry.shape, t = time, icon = entry.icon, border = entry.border, color = entry.color, shake = entry.shake, onSwing = entry.onSwing }
+				if entry.castStart and Layout.castBars then
+					out[#out + 1] = { shape = "bar", tStart = entry.castStart, tEnd = time }
+				end
 			end
 		end
 	end

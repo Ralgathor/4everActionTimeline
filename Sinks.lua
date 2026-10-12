@@ -16,7 +16,7 @@
 
 local Addon = FourEverActionTimeline
 -- Loaded before the renderer: Addon.Renderer is looked up when needed.
-local Util, Layout, Skin = Addon.Util, Addon.Layout, Addon.Skin
+local Util, Layout, Skin, SingleLane = Addon.Util, Addon.Layout, Addon.Skin, Addon.SingleLane
 
 local GetCooldownDuration = C_Spell and C_Spell.GetSpellCooldownDuration
 
@@ -103,11 +103,16 @@ end
 -- window, from the now line to the far edge (linear, as TimeToOffset).
 function Sinks:Layout()
 	local size, countdown, orient = Layout.iconSize, Addon:GetSetting("sinkCountdown"), Layout.orient
+	-- Single lane: a thin row each.
+	local rowHeight = Layout.laneHeight
+	if Layout.single then
+		rowHeight, size = SingleLane.SlotSize(), SingleLane.SinkIcon()
+	end
 	for _, lane in ipairs(shown) do
 		local bar = lane.bar
 		bar:ClearAllPoints()
 		if lane.frame then
-			Layout:PlaceAlong(bar, lane.frame, Layout.nowX, Layout.future * Layout.pxPerSec, Layout.laneHeight)
+			Layout:PlaceAlong(bar, lane.frame, Layout.nowX, Layout.future * Layout.pxPerSec, rowHeight)
 			bar:SetOrientation(orient.axis)
 			bar:SetReverseFill(orient.sign < 0)
 			bar:SetMinMaxValues(0, Layout.future)

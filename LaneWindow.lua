@@ -1,7 +1,7 @@
 -- 4everActionTimeline — the lane window (/actiontimeline config; docs/SPEC.md,
 -- Settings surface split; VISUAL.md, Settings window). The lane list the
 -- Settings category cannot hold: every known class spell as a row - enable,
--- engine-drawn lane, manual cooldown - in lane order (enabled first), drag
+-- engine-drawn lane, manual cooldown, long cooldown - in lane order (enabled first), drag
 -- to reorder. It edits one layer at a time (ADR-0002): the class layer
 -- (every character of the class) or this character, showing values and
 -- order as that layer sees them, with an "overridden" tag where this
@@ -159,6 +159,7 @@ local function CreateRow(slot)
 		self:ClearFocus()
 		Render()
 	end)
+	row.long = RowCheck(row, "long", row.override, "RIGHT", 8)
 
 	row:SetScript("OnDragStart", function()
 		dragFrom = Index(row)
@@ -185,6 +186,7 @@ function Render()
 			row.tags:SetText(Tags(base))
 			row.enabled:SetChecked(Addon:GetLaneValue(base, "enabled", layerName))
 			row.sink:SetChecked(Addon:GetLaneValue(base, "sink", layerName))
+			row.long:SetChecked(Addon:GetLaneValue(base, "long", layerName))
 			if not row.override:HasFocus() then
 				local override = Addon:GetLaneValue(base, "override", layerName)
 				row.override:SetText(override and tostring(override) or "")
@@ -275,6 +277,7 @@ local function Build()
 	Header("On", 268)
 	Header("Engine", 306)
 	Header("Cooldown (s)", 352)
+	Header("Long", 416)
 
 	listArea = CreateFrame("Frame", nil, frame)
 	listArea:SetPoint("TOPLEFT", frame, "TOPLEFT", LIST_LEFT, LIST_TOP)
@@ -291,7 +294,7 @@ local function Build()
 	note:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -LIST_LEFT, 12)
 	note:SetJustifyH("LEFT")
 	note:SetText("Drag a row to reorder; the mouse wheel scrolls. Engine: the true remaining cooldown, drawn by the game (at most "
-		.. Addon.Sinks.MAX .. "). Cooldown: a manual value for a spell that cannot be learned; empty to clear.")
+		.. Addon.Sinks.MAX .. "). Cooldown: a manual value for a spell that cannot be learned; empty to clear. Long: no slot in the Single lane's ready row (cooldowns of 30 s or more count anyway).")
 	frame:Hide()
 end
 

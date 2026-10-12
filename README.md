@@ -3,11 +3,11 @@
 A live action timeline for **WoW: Forever**: what you just did and what is
 about to happen, laid out around a now line.
 
-> **Status: early build.** Live swing lanes (main hand, off hand, ranged),
-> the GCD lane, the cast lane and spell cooldown lanes, in Blizzard's own
-> timeline art or a flat look, horizontal or vertical. Cast each tracked
-> spell once out of combat so its cooldown is learned
-> (`/actiontimeline calibration` shows what is known).
+> **Status: early build.** Live swings (main hand, off hand, ranged), the
+> GCD, your casts and spell cooldowns, on one track (Single lane) or a lane
+> each (Detailed), in Blizzard's own timeline art or a flat look,
+> horizontal or vertical. Cast each tracked spell once out of combat so its
+> cooldown is learned (`/actiontimeline calibration` shows what is known).
 
 ## What it will show
 
@@ -21,6 +21,13 @@ about to happen, laid out around a now line.
 
 Things that happened are drawn in full color; predictions are desaturated,
 so you can tell fact from forecast at a glance.
+
+Two layouts, chosen in the settings. **Single lane** (the default) puts
+everything on one track for reading from the corner of your eye: swings as
+diamonds above and below it, casts as a bar, the GCD as a faint band, the
+cooldowns that are about to return growing as they near the now line, and
+the spells you can press now in a row of fixed slots under it. **Detailed**
+gives each swing, cast and spell a lane of its own.
 
 ## What it will not show
 
@@ -50,7 +57,7 @@ invents what it cannot see:
 | `/actiontimeline sink countdown on \| off` | show the engine's own countdown on those icons (needs the game's "show cooldown numbers" option) |
 | `/actiontimeline calibration [wipe]` | what each tracked spell's cooldown is known as (or forget them all) |
 | `/actiontimeline debug` | each spell lane's live state and the last casts (for bug reports) |
-| `/actiontimeline debug layout` | each lane frame and its track line as the client sees them: skin, orientation, scale (for bug reports) |
+| `/actiontimeline debug layout` | the layout, then each lane frame and its track line as the client sees them: skin, orientation, scale (for bug reports) |
 | `/actiontimeline perf` | renderer frame time (average and worst) |
 | `/actiontimeline help` | list commands |
 
@@ -65,6 +72,11 @@ dodged or parried is only in the combat log, which Forever refuses to
 addons. A mark means "the swing happened", nothing more. What the timeline
 does show is swing *timing* the game reports — an early landing, a clip,
 a delayed shot.
+
+**Why are some hollow diamonds frozen?** In Single lane a hollow diamond is
+the ranged hand, and a hand that is paused (for example while you cast) keeps
+its marks still, with a small pause glyph on the next one. Test mode pauses
+the ranged hand on purpose, every 10 s.
 
 **Why are some icons faded?** Faded (desaturated) means a prediction;
 full color means the game confirmed it. Blue and grey tints on a ready

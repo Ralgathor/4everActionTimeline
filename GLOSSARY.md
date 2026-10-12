@@ -151,7 +151,8 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   every lane kind on one track) or **Detailed** (one lane per kind).
   ADR-0005.
 - **ready row** — Single lane's row of fixed **slots** under the track, one
-  per rotation ability, filled while the spell is ready.
+  per rotation ability, filled while the spell is ready (a cooling spell's
+  slot is an empty outline).
 - **long cooldown** — a tracked spell kept out of the ready row: a cooldown
   of 30 s or more by default, or tagged in class data or the lane window.
   _Avoid_: major cooldown (implies a judgement about the spell's value).

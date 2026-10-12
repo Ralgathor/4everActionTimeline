@@ -41,7 +41,7 @@ stays, since a later build can drop one.
 | Asset | Kind | Status | Use |
 |---|---|---|---|
 | `UI-HUD-CoolDownManager-Bar` / `-Bar-BG` | atlas | source | GCD window bar fill and backing. |
-| `combattimeline-fx-pause` / `-pause-icon` | atlas | source | Overlay on a paused hand's marks. |
+| `combattimeline-fx-pause` / `-pause-icon` | atlas | source | Overlay on a paused hand's marks; in Single lane the icon alone, beside a paused hand's next diamond. |
 | `combattimeline-fx-queued` | atlas | source | Overlay on the main-hand mark showing a queued ability. |
 | `uitools-icon-chevron-right` | atlas | probed | Edge-clamp chevron (20×20, white, tinted to the track color; turned through tex coords per orientation). |
 
@@ -49,7 +49,7 @@ stays, since a later build can drop one.
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`). |
+| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); in Single lane also the return ring on a ready-row slot or the now line, pale (`ADD`). |
 
 ## Flat skin
 

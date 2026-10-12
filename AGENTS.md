@@ -11,10 +11,11 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M7, skins and orientations** — the event store, the renderer
-(Native and Flat skins, four orientations, motion trail, pause and queued
-overlays), test mode, live hand, GCD, cast, spell and engine-drawn sink
-lanes, the Settings category, the lane window and Edit Mode placement.
+Status: **M8, the Single lane layout** — the event store, the renderer
+(two layouts: Single lane, the default, and Detailed; Native and Flat
+skins, four orientations, motion trail, pause and queued overlays), test
+mode, live hand, GCD, cast, spell and engine-drawn sink lanes, the Settings
+category, the lane window and Edit Mode placement.
 Next: the by-eye encoding check (`docs/SPEC.md`, Testing Decisions).
 The probe session is done (`docs/PROBE_SESSION.md`, build 70235); its
 verdicts live in `Probes.lua`.
@@ -54,18 +55,26 @@ addons are independent (ADR-0003).
 - `Store.lua` — the event store; `Store:Ingest` is testing seam 1.
 - `Layout.lua` — lane registry, lane order, the time axis and the
   orientation (`Layout.orient`: offsets along and across, tex-coord
-  turns), and the mark descriptor contract every lane's `Collect` follows.
+  turns), each lane's row (`ComputeRows`: one per lane in Detailed, one
+  shared track in Single lane), and the mark descriptor contract every
+  lane's `Collect` follows.
 - `Skin.lua` — Native and Flat: atlas names, the per-element atlas
   fallback, the framed icon (mask, overlay, border, pause and queued
-  overlays), the axis-turned gradient.
+  overlays), the axis-turned gradient, the swing diamond and its pause
+  glyph.
+- `SingleLane.lua` — the Single lane layout (ADR-0005): where each lane's
+  mark descriptors go on the shared track (`Adapt` rewrites one in place:
+  glyph, offset across the track, size, fade, growth), the ready row's
+  slots and which spells have one, the stepping of overlapping cooldown
+  icons, the return ring's place. Detailed needs none of it.
 - `Effects.lua` — transient effects: reposition pop, correction streak,
   across-lane shake.
 - `Sinks.lua` — the engine-drawn sink lanes: a StatusBar fed the secret
   remaining cooldown every frame, the icon a leaf on the fill's edge.
   Never read its geometry back.
-- `Renderer.lua` — the timeline frame, pooled widgets, the OnUpdate pass,
-  tracks, now line, chevron and motion trail, visibility and the expiry
-  sweep.
+- `Renderer.lua` — the timeline frame, pooled widgets (marks, diamonds,
+  ticks, bars), the OnUpdate pass, tracks, now line, chevron and motion
+  trail, the stepping pass, visibility and the expiry sweep.
 - `Classify.lua` — swing-event classification copied from 4everSwingTimer
   (marked for removal once the library reports a reason).
 - `Hands.lua` — the hand lanes: library callbacks, landings, predictions,

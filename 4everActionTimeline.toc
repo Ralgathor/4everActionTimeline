@@ -25,6 +25,7 @@ Data\Shaman.lua
 Store.lua
 Layout.lua
 Skin.lua
+SingleLane.lua
 Effects.lua
 Sinks.lua
 Renderer.lua

@@ -17,6 +17,8 @@ local max, min, sin, pi, remove = math.max, math.min, math.sin, math.pi, table.r
 local WHITE = Util.WHITE
 local POP_ATLAS = "cast_standard_pipglow" -- shared with 4everSwingTimer
 local POP_TIME = 0.3
+local RING_TIME = 0.8
+local RING_COLOR = { 1.0, 0.93, 0.75 }
 local POP_GROWTH = 0.4
 local STREAK_TIME = 0.3
 local STREAK_HEIGHT = 3
@@ -32,6 +34,7 @@ local Effects = {
 }
 Addon.Effects = Effects
 
+local SingleLane = Addon.SingleLane
 local layer
 local live = {}
 local shakeStrength = 1
@@ -56,15 +59,32 @@ local function NewStreak()
 end
 
 -- A flash at instant t on the lane, tinted color, growing as it fades.
-function Effects:Pop(lane, t, color)
-	if not (layer and t) then
-		return
-	end
+-- Starts a glow effect: a pooled pop texture, tinted, shown and tracked.
+local function Flash(effect, color, oriented)
 	local texture = remove(freePops) or NewPop()
-	Layout:OrientTexCoord(texture) -- the glow is wider than tall: turn it with the axis
+	if oriented then
+		Layout:OrientTexCoord(texture) -- the glow is wider than tall: turn it with the axis
+	else
+		texture:SetTexCoord(0, 1, 0, 1)
+	end
 	texture:SetVertexColor(color[1], color[2], color[3], 1)
 	texture:Show()
-	live[#live + 1] = { kind = "pop", lane = lane, t = t, texture = texture, start = GetTime(), duration = POP_TIME }
+	effect.texture, effect.start = texture, GetTime()
+	live[#live + 1] = effect
+end
+
+function Effects:Pop(lane, t, color)
+	if layer and t then
+		Flash({ kind = "pop", lane = lane, t = t, duration = POP_TIME }, color, true)
+	end
+end
+
+-- Single lane: a cooldown came back - a ring on its ready-row slot, or on the
+-- now line for a long cooldown (SingleLane.RingPosition).
+function Effects:Ring(lane)
+	if layer and Layout.single then
+		Flash({ kind = "ring", lane = lane, duration = RING_TIME }, RING_COLOR)
+	end
 end
 
 -- A fading streak from the old instant to the new one.
@@ -109,7 +129,7 @@ local function Release(effect)
 	local texture = effect.texture
 	texture:Hide()
 	texture:ClearAllPoints()
-	local pool = effect.kind == "pop" and freePops or freeStreaks
+	local pool = effect.kind == "streak" and freeStreaks or freePops
 	pool[#pool + 1] = texture
 end
 
@@ -125,16 +145,25 @@ function Effects:Place(now)
 			remove(live, i)
 		else
 			local texture = effect.texture
-			if effect.kind == "pop" then
-				local size = Layout.iconSize * (1 + POP_GROWTH * progress)
-				texture:SetSize(Layout:Extents(size * 1.6, size))
-				texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(Layout:TimeToOffset(min(effect.t, far), now), 0))
+			if effect.kind == "ring" then
+				local along, ringAcross = SingleLane.RingPosition(effect.lane)
+				local size = Layout.iconSize * (0.9 + 1.2 * progress)
+				texture:SetSize(size, size)
+				texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(along, ringAcross))
 			else
-				local a1 = Layout:TimeToOffset(min(min(effect.from, effect.to), far), now)
-				local a2 = Layout:TimeToOffset(min(max(effect.from, effect.to), far), now)
-				local start = Layout.orient.start
-				texture:SetPoint(start, laneFrame, start, Layout:Offsets(a1, 0))
-				texture:SetSize(Layout:Extents(max(a2 - a1, 1), STREAK_HEIGHT))
+				-- Single lane: on the hand's side of the track, where its marks are.
+				local across = Layout.single and SingleLane.Across(effect.lane) or 0
+				if effect.kind == "pop" then
+					local size = Layout.iconSize * (1 + POP_GROWTH * progress)
+					texture:SetSize(Layout:Extents(size * 1.6, size))
+					texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(Layout:TimeToOffset(min(effect.t, far), now), across))
+				else
+					local a1 = Layout:TimeToOffset(min(min(effect.from, effect.to), far), now)
+					local a2 = Layout:TimeToOffset(min(max(effect.from, effect.to), far), now)
+					local start = Layout.orient.start
+					texture:SetPoint(start, laneFrame, start, Layout:Offsets(a1, across))
+					texture:SetSize(Layout:Extents(max(a2 - a1, 1), STREAK_HEIGHT))
+				end
 			end
 			texture:SetAlpha(1 - progress)
 		end

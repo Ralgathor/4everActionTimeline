@@ -117,6 +117,7 @@ end
 -- survives only while it stays cooling.
 local function SetPhase(lane, phase, readyAt, exact)
 	local state = lane.state
+	local returned = state.phase == "cooling" and phase == nil
 	if phase ~= "cooling" then
 		state.castAt = nil
 	end
@@ -125,6 +126,9 @@ local function SetPhase(lane, phase, readyAt, exact)
 		lane.tint = IdleTint(lane)
 	end
 	Renderer:MarkDirty(lane)
+	if returned then
+		Addon.Effects:Ring(lane)
+	end
 	if phase then
 		EnsureWatch()
 	end
@@ -144,6 +148,21 @@ end
 local function Duration(lane)
 	local entry = Calibration:Entry(lane.id)
 	return Addon:GetLaneValue(lane.base, "override") or (entry and entry.duration)
+end
+
+-- A long cooldown (Single lane: no ready-row slot, a ring on the now line when
+-- it returns): flagged in the lane window, tagged in the class data, or a
+-- known cooldown of 30 s or more. A spell whose cooldown is not known yet
+-- counts as a rotation ability.
+local LONG_COOLDOWN = 30
+Spells.LONG_COOLDOWN = LONG_COOLDOWN
+
+function Spells.IsLong(lane)
+	if Addon:GetLaneValue(lane.base, "long") or Addon:ClassInfo().long[lane.base] then
+		return true
+	end
+	local duration = Duration(lane)
+	return duration ~= nil and duration >= LONG_COOLDOWN
 end
 
 -- The cooldown starts at `at` (a cast, or a linked spell's cast; a linked

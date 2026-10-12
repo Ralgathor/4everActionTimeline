@@ -13,6 +13,9 @@
 --   forms         [spell] = { the GetShapeshiftFormID values it needs }
 --   shortCooldown [spell] = true: real cooldowns no longer than the GCD
 --                 (exempt from calibration's GCD-length rejection)
+--   long          [spell] = true: a long cooldown whatever its length (it
+--                 gets no slot in the Single lane ready row; cooldowns of
+--                 30 s or more are long anyway)
 -- A file may leave out any field it does not use (Addon:ClassInfo
 -- supplies an empty one).
 

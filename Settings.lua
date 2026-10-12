@@ -10,8 +10,17 @@
 local Addon = FourEverActionTimeline
 
 local DEFAULTS = {
-	pastWindow = 5, -- seconds left of the now line
-	futureWindow = 5, -- seconds right of the now line
+	-- "single" (every lane kind on one track) | "detailed" (a lane per kind);
+	-- ADR-0005. Each layout keeps its own past and future window.
+	layout = "single",
+	pastWindow = 5, -- Detailed: seconds left of the now line
+	futureWindow = 5, -- Detailed: seconds right of the now line
+	singlePastWindow = 1.5, -- Single lane
+	singleFutureWindow = 10,
+	-- Single lane's length: the mock-up's time scale needs room (Detailed: width).
+	singleWidth = 700,
+	-- Single lane: the ready row's slots end at the now line ("past") or start at it ("future").
+	readyRowSide = "past",
 	width = 420, -- pixels along the time axis; the time scale follows from it
 	laneHeight = 26, -- pixels; icons are laneHeight - 2
 	laneSpacing = 4,
@@ -21,7 +30,10 @@ local DEFAULTS = {
 	-- "horizontal" (past left) | "horizontalFlipped" | "vertical" (past at
 	-- the bottom) | "verticalFlipped"
 	orientation = "horizontal",
-	backgroundAlpha = 0, -- a faint band behind each lane
+	backgroundAlpha = 0, -- Detailed: a faint band behind each lane
+	-- Single lane: a dark panel behind the track and the ready row, so the
+	-- marks keep their contrast over a bright scene.
+	singleBackgroundAlpha = 0.6,
 	-- Per-hand lane toggles; a lane also needs the weapon equipped.
 	showMainhand = true,
 	showOffhand = true,
@@ -44,6 +56,27 @@ function Addon:GetSetting(key)
 		value = DEFAULTS[key]
 	end
 	return value
+end
+
+-- The settings each layout keeps its own value of: Single lane's key for
+-- each (Detailed uses the key itself).
+local SINGLE_KEYS = {
+	pastWindow = "singlePastWindow",
+	futureWindow = "singleFutureWindow",
+	width = "singleWidth",
+}
+
+-- The key holding the active layout's value of a per-layout setting.
+function Addon:LayoutKey(key)
+	if self:GetSetting("layout") == "single" then
+		return SINGLE_KEYS[key] or key
+	end
+	return key
+end
+
+-- The active layout's past and future window, in seconds.
+function Addon:GetWindow()
+	return self:GetSetting(self:LayoutKey("pastWindow")), self:GetSetting(self:LayoutKey("futureWindow"))
 end
 
 function Addon:SetSetting(key, value)
@@ -72,7 +105,7 @@ local EMPTY = {}
 -- Every class data field, empty when a class file leaves it out.
 local CLASS_DEFAULTS = {
 	starter = EMPTY, gcdReference = EMPTY, linked = EMPTY, delayedStart = EMPTY,
-	resets = EMPTY, forms = EMPTY, shortCooldown = EMPTY,
+	resets = EMPTY, forms = EMPTY, shortCooldown = EMPTY, long = EMPTY,
 }
 local DEFAULTED = { __index = CLASS_DEFAULTS }
 local NO_CLASS = setmetatable({}, DEFAULTED)
