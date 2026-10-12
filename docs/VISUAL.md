@@ -91,15 +91,16 @@ a section says otherwise:
   | Element | Value |
   |---|---|
   | Length | its own setting, default 700 px (10 s at about 58 px/s; the mock-up drew about 87 px/s); linear (open: a squeezed far future) |
-  | Backdrop | one dark panel behind everything, 0.05 / 0.06 / 0.05 at 60 % (Settings: Backdrop; open: the line shadow instead) |
+  | Backdrop | one dark panel behind everything, 0.05 / 0.06 / 0.05 at 20 % (Settings: Backdrop; 60 % before the line shadow) |
+  | Line shadow | black, 70 % at the track fading to none half the track's extent out, both sides (Settings: Line shadow) |
   | Track | 2 px white at 28 % (Flat) |
   | Now line | warm 0.91 / 0.85 / 0.66 at 75 %, 2 px, a diamond at its lane-start end (Native: the pip; Flat: 1-3-5-3-1 line widths, as wide as tall) |
   | Hand diamonds | half diagonal 5, on a dark outline 1.5 px out; main hand 0.91 / 0.93 / 0.96, off hand 0.79 / 0.69 / 0.54, ranged hollow 0.62 / 0.86 / 0.66 |
-  | Next landing | from 75 % while far to 100 %, growing 5 to 8, over its last 1.5 s (open: a highlight moment instead) |
+  | Next landing | 75 % while far, 100 % and one highlight flash from its last 1.5 s (Urgency cue: Growth grows it 5 to 8 and ramps the alpha instead) |
   | Chain, parked | half diagonal 4 at 55 %, parked 5 at 50 %; grey at 80 % of the color's luminance |
-  | Cast bar | 6 px; elapsed 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 %; its icon 16 (open: channels green) |
+  | Cast bar | 6 px; elapsed 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 %; its icon 16; a channel 0.55 / 0.82 / 0.30, still to run 0.58 / 0.66 / 0.50 |
   | GCD band | 0.67 / 0.78 / 1.0, 20 % still to run, 10 % elapsed (fading) |
-  | Returning cooldown | icon 16 to 24, from 60 % while far (the Encounter Timeline's Long-track alpha) to 100 % over its last 1.5 s |
+  | Returning cooldown | icon 16, 60 % while far (the Encounter Timeline's Long-track alpha), 100 % and one highlight flash from its last 1.5 s (Growth: 16 to 24 and an alpha ramp) |
   | Ready row | slots 18, 2 apart, the nearest 12 from the now line; a cooling slot is an empty outline (1 px, 30 %) |
 
 - As built (M8): a few things differ from the rules below. The swing
@@ -148,11 +149,10 @@ a section says otherwise:
   unrun part vanishes with the red pop (Stopped casts) - red is
   Blizzard's interrupted color. Pushback jumps the
   bar's end and icon with the amber pop. A channel draws the same bar to
-  its end; one stopped early follows the stopped-cast rule. Open:
-  Blizzard fills a channel green, not gold; a green channel bar would say
-  "channel" at a glance, but must stay clear of the ranged diamond's pale
-  green and the teal pop - a bar, not a diamond, on the track, not the
-  main-hand side. An instant
+  its end, in green, as Blizzard fills a channel - a yellow green, clear
+  of the ranged diamond's pale green and the teal pop (and a bar on the
+  track, not a diamond on the main-hand side); one stopped early follows
+  the stopped-cast rule. An instant
   ability leaves its icon on the track at the moment of use, fading the
   same way.
 - Single lane, returning cooldowns: a desaturated icon on the track at
@@ -254,17 +254,19 @@ a section says otherwise:
   2 s from 1 s) - not under its icons. The gaps are its only time scale:
   no ticks, no numbers, nothing added. A texture takes at most three
   masks, so they are shared between the two line segments.
-- As built (M7, M8): no line breaks; the Native icon frame covers the line
-  under a mark anyway. Open: break the line every 1 or 2 s as the
-  timeline's seconds scale (Native: the mask; Flat: the line drawn in
-  segments) - the one cue that lets the eye read "about 2 s away" without
-  counting pixels. A gap must not sit under the now line or read as a
-  mark.
+- Here the line breaks 1, 3 and 5 s either side of the now line (in the
+  window), in both layouts: the timeline's seconds scale, the one cue that
+  lets the eye read "about 2 s away" without counting pixels. Native: the
+  mask, three per line segment (past breaks on the start segment, future
+  ones on the end segment); Flat: the line drawn in segments with a 3 px
+  gap. No break sits under the now line.
 - A **lane background alpha** slider (default 0, Blizzard's
   `BackgroundAlpha` default) adds a faint band behind each lane for players
   who want it. Blizzard's background is not a band: it is the line's
   shadow atlas (`combattimeline-line-shadow`, `-vertical`) behind the line,
-  at that alpha. Open: Native draws the shadow, Flat keeps the band.
+  at that alpha. Single lane draws a line shadow of its own instead (Layouts):
+  two black gradient bands fading out from the track, in both skins - the
+  atlas, stretched to the track's extent, read as a dark block (build 70235).
 - Lane order runs along the cross-axis: top to bottom when horizontal
   (hands on top), left to right when vertical (hands on the left). A flip
   mirrors the time axis only, never the lane order.
@@ -281,13 +283,14 @@ a section says otherwise:
 - Moving art is not snapped. Blizzard's event textures inherit
   `texelSnappingBias="0.0" snapToPixelGrid="false"`, which "makes the
   translations visually smoother": at the default length a mark moves about
-  one pixel per frame, and a snapped one steps. Open (not built): apply
-  `Util.NoSnap` to every pooled mark, diamond, outline and bar texture.
-- As built (M8): the reverse of Blizzard's split - the thin still lines
-  (Flat tracks, the now line) are unsnapped, because a snapped 1 px line was
-  drawn or dropped depending on where it fell between pixels (build 70235),
-  and the moving marks are snapped. With line widths rounded to whole
-  pixels, the still lines can return to snapping once checked in game.
+  one pixel per frame, and a snapped one steps. Every texture that scrolls -
+  the icon art, the diamonds, ticks, bars, the trail, the chevron - is made
+  by `Util.MovingTexture` (unsnapped); a ready-row slot's outline stays
+  snapped.
+- The thin still lines (Flat tracks, the now line) are unsnapped too,
+  because a snapped 1 px line was drawn or dropped depending on where it
+  fell between pixels (build 70235). With line widths rounded to whole
+  pixels they could return to snapping; untried.
 
 ### Now line
 
@@ -327,32 +330,46 @@ a section says otherwise:
 
   | Moment | Blizzard | Here |
   |---|---|---|
-  | Appears | fade in 0.2 s, sliding 25 px in across the track over 0.35 s | appears at the far edge, already dim (the far-alpha ramp) |
+  | Appears | fade in 0.2 s, sliding 25 px in across the track over 0.35 s | at the far edge, already dim; a prediction that appears inside the window fades in over 0.2 s in place |
   | Reaches zero | grows to 1.35× and fades over 0.2 s, its glow at full | landings and returns: the pop or ring at the now line |
-  | Cancelled | fades over 0.2 s, sliding 25 px out | stopped cast: the red pop and Blizzard's 0.2 s fade (Stopped casts) |
+  | Cancelled | fades over 0.2 s, sliding 25 px out | fades over 0.2 s in place (below); a stopped cast adds the red pop (Stopped casts) |
   | Moved | glides 0.45 s between slots | jumps (Hand-lane effects) |
 
-- Open (not built): a withdrawn prediction - a cadence chain dropped, a
-  return cleared by a reset, a mark replaced on rebuild - fades over 0.2 s
-  instead of vanishing. A jump stays a jump: a correction moves the mark,
-  a withdrawal removes it.
+- A withdrawn prediction - a cadence chain dropped, a return cleared by a
+  reset, a queued icon swapped back - fades over 0.2 s where it stood,
+  instead of vanishing (Blizzard's `CancelAnimation`). On each rebuild the
+  renderer pairs the predicted marks and diamonds on screen with the new
+  ones of the same kind at the same instant; an unpaired old one is kept
+  for 0.2 s as leaving - the mark itself, in its own art, fading - unless
+  an unpaired new one of its kind shows it only moved - a jump stays a jump:
+  a correction moves the mark, a withdrawal removes it. One within 0.1 s
+  of the now line was used up, not withdrawn; a layout pass fades nothing.
+- The same pairing finds the arrivals: an unpaired new prediction fades in
+  over 0.2 s from where it first stands.
 
 ### Urgency
 
-- Built: the next landing and a returning cooldown grow and brighten over
-  their last 1.5 s (one GCD), and the motion trail (Detailed) fades in over
-  the same 1.5 s.
+- Built: the next landing, a queued ability's icon and a returning
+  cooldown change once as they cross 1.5 s (one GCD) - Settings, Urgency
+  cue (Single lane):
+  - **Highlight** (default): the mark steps from its far alpha to full and
+    plays one flash - the pop's glow in the return ring's color, rising to
+    0.9 and falling over 0.4 s (Blizzard's HighlightGlow timing, a little
+    stronger), around an icon at 1.5× its size, around a diamond at 2.6×.
+    The mark does not grow, so stepped cooldown icons are spaced for 16 px.
+  - **Growth**: the M8 ramp - it grows (diamond 5 to 8, icon 16 to 24) and
+    brightens over the 1.5 s.
+- The motion trail (Detailed) fades in over the same 1.5 s.
 - Blizzard's rule is a moment, not a ramp: at a highlight time (5 s by
   default, a player setting, marked on the line by the pip and its number)
   the icon plays one glow and swirl (0.6 s), then pulses (1.0 → 1.1 → 0.9,
   about once a second) until it fires - on the Short track only, never
   while paused or queued. Peripheral vision catches an onset better than
   slow growth.
-- Open: replace or pair the growth with one highlight when a mark crosses
-  1.5 s (Native: `combattimeline-fx-highlight` and `-highlight-fx`; Flat:
-  a pop-like flash), and keep any pulse off swing diamonds, which would
-  flicker at swing speed. The busy-now-line feedback from the layout study
-  argues for the single flash over a continuous pulse.
+- No pulse: on swing diamonds it would flicker at swing speed, and the
+  busy-now-line feedback from the layout study argues for the single flash.
+  Blizzard's highlight art (`combattimeline-fx-highlight`) drew a blank
+  square in its place (build 70235), so both skins use the pop's glow.
 
 ### State tints
 
@@ -519,10 +536,9 @@ is never desaturated.
 - None. The lanes and tracks are the frame, as in Blizzard's Encounter
   Timeline; the lane background alpha slider covers players who want a
   band. Single lane is the exception: its backdrop panel (Layouts), the
-  mock-up's dark ground. Open: Blizzard gets the same contrast with no
-  panel - a shadow under the line, a border on each icon, a dark outline
-  on each diamond (already built) - so the backdrop could drop to a lower
-  default once the line shadow is in.
+  mock-up's dark ground. Blizzard gets the same contrast with no panel - a
+  shadow under the line, a border on each icon, a dark outline on each
+  diamond - so with the line shadow in, the backdrop default drops to 20 %.
 - The frame is not an Edit Mode system, so Blizzard's selection
   highlight does not draw for it: while Edit Mode is open the frame shows
   its own placement handle — a translucent band over its bounds and a
@@ -530,9 +546,9 @@ is never desaturated.
 - The boss timeline's Edit Mode settings are the set players know: size,
   opacity, orientation, icon direction, background alpha, icon size,
   countdown, text, highlight time. This addon has the size (scale),
-  orientation and flips, background alpha and countdown; it has no
-  whole-frame opacity and no icon size apart from the lane height. Open:
-  an opacity slider is the cheap one to add.
+  opacity (a Settings slider, 0.1 to 1, the whole frame), orientation and
+  flips, background alpha and countdown; it has no icon size apart from
+  the lane height.
 
 ### Settings window
 
@@ -569,17 +585,15 @@ is never desaturated.
 
 ## Open from the Blizzard review (2026-10-12)
 
-Each item is described in its section; none is built or decided.
+Built and checked in game (2026-10-12): moving marks unsnapped, line
+breaks, withdrawn predictions fading, green channels, the opacity slider.
+Built, in-game check pending: the highlight moment (Urgency), predictions
+fading in (Mark motion), the line shadow with the backdrop at 20 %
+(Layouts). Still open - each described in its section, none decided:
 
 | Item | Section | Cost |
 |---|---|---|
-| Moving marks unsnapped; still lines snapped again | Pixel grid | small, no design change |
-| Line breaks as a seconds scale | Lanes and tracks | small, no design change |
-| Withdrawn predictions fade over 0.2 s | Mark motion | small, no design change |
-| Channels green | Layouts (casts) | small, a color decision |
-| Whole-frame opacity slider | Frame chrome | small, a setting |
-| A highlight moment instead of (or with) growth | Urgency | medium, a design decision |
-| Line shadow, lower backdrop default | Lanes and tracks, Frame chrome | medium, a design decision |
+| Still lines snapped again | Pixel grid | small, untried |
 | Squeezed far future | Time axis | large, an ADR-0005 amendment |
 
 ## Verified facts (Forever branch source; live 12.1.0.69933 re-read 2026-10-12)

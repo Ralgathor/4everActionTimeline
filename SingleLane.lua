@@ -54,6 +54,10 @@ end
 -- elapsed, lighter where still to run.
 local CAST_ELAPSED = { 0.88, 0.67, 0.35, 0.95 }
 local CAST_REMAINING = { 0.67, 0.63, 0.57, 0.6 } -- a muted sand: still to run
+-- A channel is green, as on Blizzard's cast bar: a yellow green, clear of the
+-- ranged diamond's pale green and the teal pop.
+local CHANNEL_ELAPSED = { 0.55, 0.82, 0.30, 0.95 }
+local CHANNEL_REMAINING = { 0.58, 0.66, 0.50, 0.6 }
 -- The GCD band: a clear blue, full where the GCD still runs, half where elapsed.
 local BAND_REMAINING = { 0.67, 0.78, 1.0, 0.2 }
 local BAND_ELAPSED = { 0.67, 0.78, 1.0, 0.1 }
@@ -180,7 +184,7 @@ end
 -- slightly (the least-recent level).
 function SingleLane.Step(list, count)
 	local k = Scale()
-	local gap = COOLDOWN_ICON * COOLDOWN_GROWTH * k + 1
+	local gap = COOLDOWN_ICON * (Layout.highlight and 1 or COOLDOWN_GROWTH) * k + 1
 	local last = { -math.huge, -math.huge, -math.huge }
 	local offsets = { 0, -Layout.orient.crossSign * ICON_STEP * k, Layout.orient.crossSign * ICON_STEP * k }
 	for i = 1, count do
@@ -227,6 +231,17 @@ function SingleLane.Across(lane)
 	return -Layout.orient.crossSign * side * distance * Scale()
 end
 
+-- How a mark says it is within the next GCD (Settings: Urgency cue): it
+-- grows by `growth` over its last 1.5 s, or flashes once as it crosses into
+-- them (Layout.highlight).
+local function Urgent(desc, growth)
+	if Layout.highlight then
+		desc.highlight = true
+	else
+		desc.grow = growth
+	end
+end
+
 local function AdaptHand(lane, desc)
 	local k = Scale()
 	desc.across = SingleLane.Across(lane)
@@ -242,7 +257,9 @@ local function AdaptHand(lane, desc)
 	if desc.queued or (happened and desc.onSwing) then
 		-- The queued ability replaces the diamond, and the landing it rode keeps it.
 		desc.size, desc.fade = QUEUED_ICON * k, happened or nil
-		desc.grow = desc.predicted and QUEUED_GROWTH or nil
+		if desc.predicted then
+			Urgent(desc, QUEUED_GROWTH)
+		end
 		desc.queued, desc.paused = nil, nil -- no overlays on a small icon
 		return true
 	end
@@ -253,7 +270,8 @@ local function AdaptHand(lane, desc)
 	desc.radius = (desc.chain and CHAIN_DIAMOND or DIAMOND) * k
 	desc.alpha = desc.dim and 0.5 or (desc.chain and CHAIN_ALPHA or 1)
 	if desc.predicted and not desc.chain and not desc.atNow then
-		desc.grow, desc.farAlpha = DIAMOND_GROWTH, DIAMOND_FAR_ALPHA
+		desc.farAlpha = DIAMOND_FAR_ALPHA
+		Urgent(desc, DIAMOND_GROWTH)
 	end
 	desc.fade = happened or nil
 	desc.glyph = (desc.paused and not desc.chain) and "pause" or nil
@@ -273,7 +291,11 @@ end
 local function AdaptCast(desc)
 	local k = Scale()
 	if desc.shape == "bar" then
-		desc.color, desc.unelapsedColor = CAST_ELAPSED, CAST_REMAINING
+		if desc.channel then
+			desc.color, desc.unelapsedColor = CHANNEL_ELAPSED, CHANNEL_REMAINING
+		else
+			desc.color, desc.unelapsedColor = CAST_ELAPSED, CAST_REMAINING
+		end
 		desc.thickness, desc.fade = CAST_BAR * k, true
 	else
 		desc.size = CAST_ICON * k
@@ -306,7 +328,8 @@ local function AdaptSpell(lane, desc)
 	if not desc.predicted then
 		return false
 	end
-	desc.size, desc.grow, desc.farAlpha, desc.stepper = COOLDOWN_ICON * k, COOLDOWN_GROWTH, COOLDOWN_FAR_ALPHA, true
+	desc.size, desc.farAlpha, desc.stepper = COOLDOWN_ICON * k, COOLDOWN_FAR_ALPHA, true
+	Urgent(desc, COOLDOWN_GROWTH)
 	return true
 end
 

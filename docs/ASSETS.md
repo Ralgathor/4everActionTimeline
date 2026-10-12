@@ -25,6 +25,7 @@ stays, since a later build can drop one.
 | Asset | Kind | Status | Use |
 |---|---|---|---|
 | `combattimeline-line-left` / `combattimeline-line-right` | atlas | source | Per-lane track line (Encounter Timeline track view). |
+| `combattimeline-line-break-mask` | atlas | source, seen in game | Line-break masks on the track line, 1, 3 and 5 s either side of the now line (three per line segment, the texture limit). |
 | `combattimeline-cooldown-divider` | atlas | source | Now line, stretched across every lane. |
 | `combattimeline-pip` | atlas | source | Diamond at the now line's lane-start end. |
 | `combattimeline-line-icontrail` | atlas | source | Motion trail on the next predicted mark (`ADD`). |
@@ -59,8 +60,6 @@ stays, since a later build can drop one.
 
 ## Candidates noted, not chosen
 
-- `combattimeline-line-break-mask` — Blizzard's track-line breaks (fixed
-  intervals, at most three masks per texture); not drawn as of M7.
 - `uitools-icon-chevron-left` — the right chevron turned through tex
   coords covers flipped orientations.
 

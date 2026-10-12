@@ -55,7 +55,7 @@ function lane:Collect(now, out)
 	if cast then
 		if cast.finish and Layout.castBars then
 			-- Single lane: the cast is a bar from its start to its completion.
-			out[#out + 1] = { shape = "bar", tStart = cast.start, tEnd = cast.finish }
+			out[#out + 1] = { shape = "bar", tStart = cast.start, tEnd = cast.finish, channel = cast.channel }
 		else
 			out[#out + 1] = { atNow = true, icon = cast.icon }
 		end
@@ -134,7 +134,7 @@ end
 
 -- The in-flight cast completed (or the channel ran to its end).
 local function Complete(now)
-	Ingest({ kind = "cast", time = now, icon = cast.icon, castStart = cast.start })
+	Ingest({ kind = "cast", time = now, icon = cast.icon, castStart = cast.start, channel = cast.channel })
 	cast = nil
 	Renderer:MarkDirty(lane)
 end
@@ -143,7 +143,7 @@ end
 -- instant (flash, shake); the predicted mark pops red and vanishes; the GCD
 -- it began may be cleared.
 local function Fail(now)
-	Ingest({ kind = "cast-stop", time = now, icon = cast.icon, border = "red", shake = Effects:Shake(lane), castStart = cast.start })
+	Ingest({ kind = "cast-stop", time = now, icon = cast.icon, border = "red", shake = Effects:Shake(lane), castStart = cast.start, channel = cast.channel })
 	Effects:Pop(lane, now, Effects.RED)
 	if cast.finish then
 		Effects:Pop(lane, cast.finish, Effects.RED)

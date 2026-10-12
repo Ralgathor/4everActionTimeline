@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marks dimmer than the ones about to happen, and a longer default length
   (700 px) so 10 s of future has room. Length is now kept per layout, like
   the windows.
+- From a review of Blizzard's own UI (VISUAL.md, Principles): the track
+  breaks 1, 3 and 5 s either side of the now line as a seconds scale, as
+  the boss timeline's line does; moving marks are no longer snapped to the
+  pixel grid, so they glide; a prediction that is withdrawn fades out over
+  0.2 s instead of vanishing; a channel's bar is green (Single lane); an
+  Opacity slider fades the whole frame. Test mode's casts include a
+  channel.
+- Single lane's urgency is a moment instead of a ramp: a mark crossing its
+  last 1.5 s steps to full alpha and plays one highlight flash, without
+  growing (Settings: Urgency cue; Growth keeps the M8 ramp). A prediction
+  that appears inside the window fades in over 0.2 s. A soft line shadow
+  under the track (Settings: Line shadow) gives the contrast, so the
+  backdrop default drops from 60 % to 20 %.
 
 - M7 skins and orientations: the Native skin (default) — Blizzard's
   timeline track segments, the cooldown-divider now line with its pip,

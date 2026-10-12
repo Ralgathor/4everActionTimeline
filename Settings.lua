@@ -25,6 +25,7 @@ local DEFAULTS = {
 	laneHeight = 26, -- pixels; icons are laneHeight - 2
 	laneSpacing = 4,
 	scale = 1.0,
+	opacity = 1.0, -- the whole frame (the boss timeline's Edit Mode Transparency)
 	visibility = "combat", -- "combat" | "always" | "active"
 	skin = "native", -- "native" | "flat" (VISUAL.md, Skins)
 	-- "horizontal" (past left) | "horizontalFlipped" | "vertical" (past at
@@ -33,7 +34,14 @@ local DEFAULTS = {
 	backgroundAlpha = 0, -- Detailed: a faint band behind each lane
 	-- Single lane: a dark panel behind the track and the ready row, so the
 	-- marks keep their contrast over a bright scene.
-	singleBackgroundAlpha = 0.6,
+	singleBackgroundAlpha = 0.2,
+	-- Single lane: a soft shadow under the track line, the contrast Blizzard's
+	-- boss timeline gets instead of a panel (VISUAL.md, Frame chrome).
+	singleShadowAlpha = 0.7,
+	-- Single lane: how a mark says "within your next GCD" - "highlight" (one
+	-- flash as it crosses 1.5 s, Blizzard's highlight time) | "growth" (it
+	-- grows and brightens over its last 1.5 s).
+	urgency = "highlight",
 	-- Per-hand lane toggles; a lane also needs the weapon equipped.
 	showMainhand = true,
 	showOffhand = true,

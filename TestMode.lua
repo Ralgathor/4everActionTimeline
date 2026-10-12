@@ -202,7 +202,8 @@ end
 gcd.Collect = Layout.CollectHappened
 
 -- ---------------------------------------------------------------------------
--- Cast lane: a 2 s cast every 6 s; every third one stops early (red).
+-- Cast lane: a 2 s cast every 6 s; every third one stops early (red), and
+-- the one before it is a channel.
 -- ---------------------------------------------------------------------------
 
 local cast = { key = "test-cast", group = "cast", order = 1 }
@@ -213,6 +214,10 @@ end
 
 local function CastStops(k)
 	return k % 3 == 2
+end
+
+local function CastChannels(k)
+	return k % 3 == 1 or nil
 end
 
 function cast:Reset()
@@ -230,7 +235,7 @@ function cast:Advance(now)
 	local stops = CastStops(k)
 	local finish = start + (stops and CAST_STOP_AT or CAST_TIME)
 	if finish <= now then
-		Ingest({ kind = "cast", lane = self.key, time = finish, icon = self.icon, border = stops and "red" or nil, castStart = start })
+		Ingest({ kind = "cast", lane = self.key, time = finish, icon = self.icon, border = stops and "red" or nil, castStart = start, channel = CastChannels(k) })
 		self.next = k + 1
 	end
 	SyncPhase(self, now)
@@ -244,7 +249,7 @@ function cast:Collect(now, out)
 		-- from its start), and its completion is full color (the live
 		-- cast-time read is plain, probe 11).
 		if Layout.castBars then
-			out[#out + 1] = { shape = "bar", tStart = start, tEnd = start + CAST_TIME }
+			out[#out + 1] = { shape = "bar", tStart = start, tEnd = start + CAST_TIME, channel = CastChannels(self.next) }
 		else
 			out[#out + 1] = { atNow = true, icon = self.icon }
 		end

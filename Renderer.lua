@@ -20,10 +20,12 @@
 local Addon = FourEverActionTimeline
 local Util, Layout, Store, Effects, Skin, SingleLane = Addon.Util, Addon.Layout, Addon.Store, Addon.Effects, Addon.Skin, Addon.SingleLane
 local ShakeOffset = Effects.ShakeOffset
+-- Everything that scrolls is unsnapped (VISUAL.md, Pixel grid).
+local MovingTexture = Util.MovingTexture
 
 local GetTime = GetTime
 local debugprofilestop = debugprofilestop
-local ipairs, max, min, random, wipe = ipairs, math.max, math.min, math.random, wipe
+local ipairs, abs, max, min, random, wipe = ipairs, math.abs, math.max, math.min, math.random, wipe
 local cos, sin, pi = math.cos, math.sin, math.pi
 
 local WHITE = Util.WHITE
@@ -42,7 +44,23 @@ local TRAIL_ONSET = 1.5
 -- Blizzard anchors the trail's end 10 px into the icon (UpdateTrailLayout).
 local TRAIL_OVERLAP = 10
 local FLAT_TRAIL_LENGTH, FLAT_TRAIL_THICKNESS = 64, 3
+-- A prediction this close to the now line when it went was used up (it
+-- landed), not withdrawn; a new one within this of an old one is the same.
+-- A withdrawn one fades out over Blizzard's CancelAnimation time.
+local WITHDRAW_LEAD, WITHDRAW_MATCH, WITHDRAW_TIME = 0.1, 0.05, 0.2
+-- A prediction that appears fades in over Blizzard's intro time.
+local ENTER_TIME = 0.2
+-- Single lane's highlight glow (Effects:Highlight): around an icon at
+-- Blizzard's overhang, around a diamond wider. (Blizzard's own highlight art
+-- draws a blank square here, build 70235.)
+local HIGHLIGHT_ICON, HIGHLIGHT_DIAMOND = 1.5, 2.6
 local TRACK_COLOR = { 1, 1, 1, 0.18 }
+-- The track breaks at these seconds from the now line (past negative, in
+-- order along the axis), Blizzard's line breaks (1 s, then every 2 s; at most
+-- three masks per line segment): the timeline's seconds scale. Flat leaves a
+-- gap this wide.
+local LINE_BREAKS = { -5, -3, -1, 1, 3, 5 }
+local LINE_BREAK_GAP = 3
 -- Single lane has one track, its spine: the Flat line is 2 px and brighter,
 -- so it still reads when a thin unsnapped line straddles two screen pixels.
 local SINGLE_TRACK_ALPHA = 0.28
@@ -67,6 +85,7 @@ local Renderer = {}
 Addon.Renderer = Renderer
 
 local frame, backdrop, barLayer, markLayer, nowLine, pip
+local shadow -- Single lane: the line shadow's two halves (LayoutShadow)
 local laneFrames = {}
 local scratch = {}
 local allDirty, layoutDirty = true, true
@@ -86,15 +105,15 @@ local function CreateChevron(parent)
 	local chevron = CreateFrame("Frame", nil, parent)
 	local r, g, b = TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3]
 	if Util.AtlasExists(ATLAS.chevron) then
-		chevron.texture = chevron:CreateTexture(nil, "OVERLAY")
+		chevron.texture = MovingTexture(chevron, "OVERLAY")
 		chevron.texture:SetAllPoints()
 		chevron.texture:SetAtlas(ATLAS.chevron)
 		chevron.texture:SetVertexColor(r, g, b, 0.9)
 	else
-		chevron.upper = chevron:CreateTexture(nil, "OVERLAY")
+		chevron.upper = MovingTexture(chevron, "OVERLAY")
 		chevron.upper:SetTexture(WHITE)
 		chevron.upper:SetVertexColor(r, g, b, 0.9)
-		chevron.lower = chevron:CreateTexture(nil, "OVERLAY")
+		chevron.lower = MovingTexture(chevron, "OVERLAY")
 		chevron.lower:SetTexture(WHITE)
 		chevron.lower:SetVertexColor(r, g, b, 0.9)
 	end
@@ -149,7 +168,7 @@ local function CreateMark()
 	mark.art = Skin.CreateIconArt(mark)
 	mark.art.icon:SetPoint("CENTER", mark, "CENTER")
 	mark.icon = mark.art.icon
-	mark.trail = mark:CreateTexture(nil, "BACKGROUND")
+	mark.trail = MovingTexture(mark, "BACKGROUND")
 	mark.trail:SetBlendMode("ADD")
 	mark.trail:Hide()
 	mark.chevron = CreateChevron(mark)
@@ -219,7 +238,7 @@ local function ResetOutline(outline)
 end
 
 local function CreateTick()
-	local tick = barLayer:CreateTexture(nil, "ARTWORK")
+	local tick = MovingTexture(barLayer, "ARTWORK")
 	tick:SetTexture(WHITE)
 	return tick
 end
@@ -235,9 +254,9 @@ end
 -- Cooldown Manager bar backing under the whole bar.
 local function CreateBar()
 	return {
-		bg = barLayer:CreateTexture(nil, "BORDER"),
-		elapsed = barLayer:CreateTexture(nil, "ARTWORK"),
-		unelapsed = barLayer:CreateTexture(nil, "ARTWORK"),
+		bg = MovingTexture(barLayer, "BORDER"),
+		elapsed = MovingTexture(barLayer, "ARTWORK"),
+		unelapsed = MovingTexture(barLayer, "ARTWORK"),
 	}
 end
 
@@ -264,6 +283,7 @@ local function CreateLaneFrame()
 	-- one over the past window and the end one over the future window.
 	lane.track = lane:CreateTexture(nil, "BORDER")
 	Util.NoSnap(lane.track)
+	lane.segments = { lane.track }
 	lane.trackStart = lane:CreateTexture(nil, "BORDER")
 	lane.trackEnd = lane:CreateTexture(nil, "BORDER")
 	lane.marks = Util.NewPool(CreateMark, ResetMark)
@@ -498,13 +518,17 @@ local function FadeFactor(t, now)
 	return min(max(1 - (now - t) * Layout.invPast, 0), 1)
 end
 
--- Scales the widget's base alpha by its fade; an unchanged alpha costs nothing.
-local function ApplyFade(widget, t, now)
-	local a = FadeFactor(t, now) * widget.alphaValue
+-- Sets a widget's alpha; an unchanged alpha costs nothing.
+local function SetFade(widget, a)
 	if widget.fadeAlpha ~= a then
 		widget.fadeAlpha = a
 		widget:SetAlpha(a)
 	end
+end
+
+-- Scales the widget's base alpha by its fade.
+local function ApplyFade(widget, t, now)
+	SetFade(widget, FadeFactor(t, now) * widget.alphaValue)
 end
 
 local function ApplyBarFade(bar, tEnd, now)
@@ -535,23 +559,50 @@ local function PlaceTrail(mark, t, pinned, now)
 	end
 end
 
--- Marks and diamonds: grow toward the now line, sit `across` the track (plus a
--- shake) and fade. A fixed place (a ready-row slot: `t` nil) neither grows
--- nor fades.
+-- Marks and diamonds: sit `across` the track (plus a shake), fade, and say
+-- when they are within TRAIL_ONSET of the now line: `grow` grows them toward
+-- it, `highlight` flashes once as they cross it (SingleLane.Adapt decides).
+-- A fixed place (a ready-row slot: `t` nil) neither grows nor fades.
 local function PlaceScaled(widget, desc, along, t, now)
-	local scale = (desc.grow and t) and Growth(desc.grow, t - now) or 1
+	local lead = t and t - now
+	local scale = (desc.grow and t) and Growth(desc.grow, lead) or 1
+	if desc.highlight and t then
+		-- One flash on crossing; a mark built already inside never flashes,
+		-- so a rebuild does not flash it again.
+		local inside = lead <= TRAIL_ONSET
+		if desc.highlighted == nil then
+			desc.highlighted = inside
+		elseif inside and not desc.highlighted then
+			desc.highlighted = true
+			Effects:Highlight(widget, desc.radius and desc.radius * 2 * HIGHLIGHT_DIAMOND or (desc.size or Layout.iconSize) * HIGHLIGHT_ICON)
+		end
+	end
 	SetWidgetScale(widget, scale)
 	local shake = desc.shake
 	Anchor(widget, along, (desc.across or 0) + (shake and ShakeOffset(shake, now) or 0), scale ~= 1 and scale or nil)
+	local a
 	if desc.fade and t then
-		ApplyFade(widget, t, now)
+		a = FadeFactor(t, now) * widget.alphaValue
 	elseif desc.farAlpha and t then
-		-- Dimmer while far, brightening as it grows.
-		local a = desc.farAlpha + (1 - desc.farAlpha) * Approach(t - now)
-		if widget.fadeAlpha ~= a then
-			widget.fadeAlpha = a
-			widget:SetAlpha(a)
+		-- Dimmer while far: brightening as it grows, or at once on the flash.
+		if desc.highlight then
+			a = lead > TRAIL_ONSET and desc.farAlpha or 1
+		else
+			a = desc.farAlpha + (1 - desc.farAlpha) * Approach(lead)
 		end
+	end
+	-- A withdrawn prediction fades out, a new one fades in (RebuildLane).
+	if desc.leaving then
+		a = (a or widget.alphaValue) * max(desc.leaving - now, 0) / WITHDRAW_TIME
+	elseif desc.entering then
+		local entered = (now - desc.entering) / ENTER_TIME
+		if entered >= 1 then
+			desc.entering = nil
+		end
+		a = (a or widget.alphaValue) * min(entered, 1)
+	end
+	if a then
+		SetFade(widget, a)
 	end
 end
 
@@ -659,15 +710,78 @@ end
 -- Layout and rebuild
 -- ---------------------------------------------------------------------------
 
+-- Flat: the track's segments between its line breaks; the first is the
+-- lane's track texture, the rest are made on demand.
+local function TrackSegment(laneFrame, index)
+	local segments = laneFrame.segments
+	local segment = segments[index]
+	if not segment then
+		segment = laneFrame:CreateTexture(nil, "BORDER")
+		Util.NoSnap(segment)
+		segments[index] = segment
+	end
+	return segment
+end
+
+local function HideSegments(laneFrame, from)
+	local segments = laneFrame.segments
+	for i = from, #segments do
+		segments[i]:Hide()
+	end
+end
+
+-- Native: the line-break masks, three per line segment (a texture takes at
+-- most three), past ones on the start segment and future ones on the end
+-- segment.
+local function BreakMasks(laneFrame)
+	local masks = laneFrame.breakMasks
+	if not masks then
+		masks = {}
+		for i, seconds in ipairs(LINE_BREAKS) do
+			local mask = laneFrame:CreateMaskTexture()
+			mask:SetAtlas(ATLAS.lineBreak, true)
+			local segment = seconds < 0 and laneFrame.trackStart or laneFrame.trackEnd
+			segment:AddMaskTexture(mask)
+			masks[i] = mask
+		end
+		laneFrame.breakMasks = masks
+	end
+	return masks
+end
+
+-- A line break's place along the axis, or nil when it is out of the window.
+local function BreakOffset(seconds)
+	if seconds < -Layout.past or seconds > Layout.future then
+		return nil
+	end
+	return Layout:TimeToOffset(seconds, 0)
+end
+
+-- Flat: places the count-th track segment from `from` to `to` (none when
+-- empty) and returns the segment count.
+local function PlaceSegment(laneFrame, count, from, to, alpha, thickness)
+	if to <= from then
+		return count
+	end
+	count = count + 1
+	local segment = TrackSegment(laneFrame, count)
+	segment:SetColorTexture(TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3], alpha)
+	Layout:PlaceAlong(segment, laneFrame, from, to - from, thickness)
+	segment:Show()
+	return count
+end
+
 -- A lane's track: Native the two line segments meeting at the now line,
--- Flat one 1 px line in the track color. The art is set when the skin or
--- orientation changed; the geometry on every layout pass.
+-- Flat a 1 px line in the track color, both broken at fixed seconds from the
+-- now line (Blizzard's line breaks: the timeline's seconds scale). The art
+-- is set when the skin or orientation changed; the geometry on every layout
+-- pass.
 local function LayoutTrack(laneFrame, native, thickness, alpha, drawn)
 	-- Single lane: only one lane frame draws the shared track.
 	if not drawn then
 		if laneFrame.trackStyle ~= false then
 			laneFrame.trackStyle = false
-			laneFrame.track:Hide()
+			HideSegments(laneFrame, 1)
 			laneFrame.trackStart:Hide()
 			laneFrame.trackEnd:Hide()
 		end
@@ -675,25 +789,61 @@ local function LayoutTrack(laneFrame, native, thickness, alpha, drawn)
 	end
 	local trackEnd = Layout.future * Layout.pxPerSec
 	local trackStart = Layout.nowX - Layout.padStart
-	if laneFrame.trackStyle ~= Layout.style or laneFrame.trackAlpha ~= alpha then
-		laneFrame.trackStyle, laneFrame.trackAlpha = Layout.style, alpha
+	if laneFrame.trackStyle ~= Layout.style then
+		laneFrame.trackStyle = Layout.style
 		if native then
 			laneFrame.trackStart:SetAtlas(ATLAS.lineStart)
 			laneFrame.trackEnd:SetAtlas(ATLAS.lineEnd)
 			Layout:OrientTexCoord(laneFrame.trackStart)
 			Layout:OrientTexCoord(laneFrame.trackEnd)
-		else
-			laneFrame.track:SetColorTexture(TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3], alpha)
+			HideSegments(laneFrame, 1)
 		end
-		laneFrame.track:SetShown(not native)
 		laneFrame.trackStart:SetShown(native)
 		laneFrame.trackEnd:SetShown(native)
 	end
 	if native then
 		Layout:PlaceAlong(laneFrame.trackStart, laneFrame, Layout.padStart, trackStart, thickness)
 		Layout:PlaceAlong(laneFrame.trackEnd, laneFrame, Layout.nowX, trackEnd, thickness)
+		if Skin.Native("lineBreak") then
+			local start = Layout.orient.start
+			for i, mask in ipairs(BreakMasks(laneFrame)) do
+				-- A break out of the window parks off the line, where it masks nothing.
+				local along = BreakOffset(LINE_BREAKS[i]) or -1000
+				mask:SetPoint("CENTER", laneFrame, start, Layout:Offsets(along, 0))
+				mask:SetRotation(Layout.orient.vertical and pi / 2 or 0)
+			end
+		end
 	else
-		Layout:PlaceAlong(laneFrame.track, laneFrame, Layout.padStart, trackStart + trackEnd, thickness)
+		-- The segments run from the past end to the future end, skipping a
+		-- short gap at each break.
+		local gap = Util.PixelSize(frame, LINE_BREAK_GAP)
+		local from, count = Layout.padStart, 0
+		for _, seconds in ipairs(LINE_BREAKS) do
+			local along = BreakOffset(seconds)
+			if along then
+				count = PlaceSegment(laneFrame, count, from, along - gap / 2, alpha, thickness)
+				from = along + gap / 2
+			end
+		end
+		count = PlaceSegment(laneFrame, count, from, Layout.nowX + trackEnd, alpha, thickness)
+		HideSegments(laneFrame, count + 1)
+	end
+end
+
+-- Single lane: the line shadow under the one track over its whole length,
+-- two dark bands fading out from the line across the axis, in both skins
+-- (VISUAL.md, Frame chrome). (Blizzard's shadow art stretches into a dark
+-- block at this size.) Hidden at alpha 0 or without a track.
+local function LayoutShadow(trackFrame, extent, alpha)
+	local shown = trackFrame ~= nil and alpha > 0
+	for i, half in ipairs(shadow) do
+		half:SetShown(shown)
+		if shown then
+			local sign = i == 1 and 1 or -1
+			-- Dark at the line: the min side of the upper (or right) half.
+			Skin.Gradient(half, 0, 0, 0, sign < 0, alpha, true)
+			Layout:PlaceAlong(half, trackFrame, Layout.padStart, Layout.nowX + Layout.future * Layout.pxPerSec - Layout.padStart, extent / 2, sign * extent / 4)
+		end
 	end
 end
 
@@ -702,6 +852,7 @@ local function ApplyLayout()
 	local lanes = Layout:Lanes()
 	frame:SetSize(Layout:Extents(Layout.frameWidth, max(Layout.height, 1)))
 	frame:SetScale(Addon:GetSetting("scale"))
+	frame:SetAlpha(Addon:GetSetting("opacity"))
 	-- Single lane: one dark panel behind everything instead of a band per lane.
 	local backdropAlpha = Layout.single and Addon:GetSetting("singleBackgroundAlpha") or 0
 	backdrop:SetColorTexture(BACKDROP_COLOR[1], BACKDROP_COLOR[2], BACKDROP_COLOR[3], backdropAlpha)
@@ -716,7 +867,7 @@ local function ApplyLayout()
 		trackThickness = Util.PixelSize(frame, Layout.single and 2 or 1)
 	end
 	local trackAlpha = Layout.single and SINGLE_TRACK_ALPHA or TRACK_COLOR[4]
-	local trackLane -- Single lane: the first track lane, which draws the track
+	local trackLane, trackIndex -- Single lane: the first track lane, which draws the track
 	for i, lane in ipairs(lanes) do
 		local laneFrame = laneFrames[i]
 		if not laneFrame then
@@ -729,7 +880,9 @@ local function ApplyLayout()
 		local drawn = true
 		if Layout.single and lane.group ~= "sink" then
 			drawn = trackLane == nil
-			trackLane = trackLane or lane
+			if drawn then
+				trackLane, trackIndex = lane, i
+			end
 		end
 		laneFrame.band:SetColorTexture(1, 1, 1, bandAlpha)
 		laneFrame.band:SetShown(drawn and bandAlpha > 0)
@@ -741,15 +894,123 @@ local function ApplyLayout()
 		ClearLaneFrame(laneFrames[i])
 		laneFrames[i]:Hide()
 	end
+	LayoutShadow(trackLane and trackLane.frame, trackIndex and Layout.laneExtents[trackIndex], Addon:GetSetting("singleShadowAlpha"))
 	Skin.StyleNowLine(nowLine, pip, frame)
 	layoutDirty = false
 	allDirty = true
 	Addon.Sinks:Layout()
 end
 
-local function RebuildLane(lane, now)
+-- Takes the widget for a descriptor from the lane frame's pool for its
+-- shape and configures it. Only the lane's next predicted mark trails.
+local function Build(laneFrame, desc, nextDesc)
+	local shape = desc.shape
+	local widget
+	if shape == "bar" then
+		widget = laneFrame.bars:Take()
+		ConfigureBar(widget, desc)
+	elseif shape == "tick" then
+		widget = laneFrame.ticks:Take()
+		ConfigureTick(widget, desc)
+	elseif shape == "diamond" then
+		widget = laneFrame.diamonds:Take()
+		ConfigureDiamond(widget, desc)
+	elseif shape == "outline" then
+		widget = laneFrame.outlines:Take()
+		ConfigureOutline(widget, desc)
+	else
+		widget = laneFrame.marks:Take()
+		ConfigureMark(widget, desc)
+		local trailing = desc == nextDesc
+		if widget.trailing and not trailing then
+			widget.trail:Hide()
+			widget.trailShown = nil
+		end
+		widget.trailing = trailing
+	end
+	widget.desc, widget.laneFrame = desc, laneFrame
+end
+
+-- Withdrawn and new predictions (VISUAL.md, Mark motion), per pool (marks,
+-- diamonds): a predicted widget on screen before a rebuild is paired with a
+-- new one at its instant. Of the ones left unpaired, an old one and a new one
+-- are one prediction that moved (it jumps); the old ones left over were
+-- withdrawn - each descriptor is kept for WITHDRAW_TIME as `leaving`, so the
+-- mark itself fades out - and the new ones left over appeared and fade in.
+-- One within WITHDRAW_LEAD of the now line was used up, not withdrawn.
+local function Withdrawable(desc)
+	return desc.predicted and not desc.atNow and not desc.along
+end
+
+-- Before the rebuild: the pool's predictions and their drawn instants (a
+-- leaving one carries on until its time is up).
+local function Note(pool, now)
+	local notes, times, count = pool.notes or {}, pool.noteTimes or {}, 0
+	pool.notes, pool.noteTimes = notes, times
+	local used = pool.used
+	for i = 1, #used do
+		local widget = used[i]
+		local desc = widget.desc
+		local t = not desc.leaving and widget.visible and Withdrawable(desc) and ResolveTime(desc, now)
+		if (desc.leaving and desc.leaving > now) or (t and t - now > WITHDRAW_LEAD) then
+			count = count + 1
+			notes[count], times[count] = desc, t
+		end
+	end
+	pool.noteCount = count
+end
+
+-- After the rebuild: pairs the pool's new predictions with its notes, then
+-- fades the leftovers in and out.
+local function Reconcile(lane, pool, now)
+	local notes, times, count = pool.notes, pool.noteTimes, pool.noteCount or 0
+	local fresh, freshCount = pool.fresh or {}, 0
+	pool.fresh = fresh
+	local used = pool.used
+	for i = 1, pool.cursor do
+		local desc = used[i].desc
+		if Withdrawable(desc) then
+			local t = ResolveTime(desc, now)
+			local paired = false
+			for j = 1, t and count or 0 do
+				local old = notes[j]
+				if old and not old.leaving and abs(times[j] - t) < WITHDRAW_MATCH then
+					notes[j], paired = false, true
+					desc.entering = old.entering -- still fading in
+					break
+				end
+			end
+			if not paired then
+				freshCount = freshCount + 1
+				fresh[freshCount] = desc
+			end
+		end
+	end
+	local moved = 0
+	for j = 1, count do
+		local old = notes[j]
+		if old and not old.leaving and moved < freshCount then
+			moved = moved + 1
+		elseif old then
+			old.leaving = old.leaving or now + WITHDRAW_TIME
+			Build(lane.frame, old)
+			lane.nextRebuild = min(lane.nextRebuild, old.leaving)
+		end
+	end
+	for i = moved + 1, freshCount do
+		fresh[i].entering = now
+	end
+end
+
+-- `withdraw`: fade out the predictions this rebuild removed and fade in the
+-- ones it added (not on a layout pass, which rebuilds everything anew).
+local function RebuildLane(lane, now, withdraw)
 	local laneFrame = lane.frame
 	local marks, diamonds, outlines, ticks, bars = laneFrame.marks, laneFrame.diamonds, laneFrame.outlines, laneFrame.ticks, laneFrame.bars
+	if withdraw then
+		Note(marks, now)
+		Note(diamonds, now)
+	end
 	marks:BeginReuse()
 	diamonds:BeginReuse()
 	outlines:BeginReuse()
@@ -773,32 +1034,14 @@ local function RebuildLane(lane, now)
 	for i = 1, #scratch do
 		local desc = scratch[i]
 		if not single or SingleLane.Adapt(lane, desc) then
-			local shape = desc.shape
-			local widget
-			if shape == "bar" then
-				widget = bars:Take()
-				ConfigureBar(widget, desc)
-			elseif shape == "tick" then
-				widget = ticks:Take()
-				ConfigureTick(widget, desc)
-			elseif shape == "diamond" then
-				widget = diamonds:Take()
-				ConfigureDiamond(widget, desc)
-			elseif shape == "outline" then
-				widget = outlines:Take()
-				ConfigureOutline(widget, desc)
-			else
-				widget = marks:Take()
-				ConfigureMark(widget, desc)
-				local trailing = desc == nextDesc
-				if widget.trailing and not trailing then
-					widget.trail:Hide()
-					widget.trailShown = nil
-				end
-				widget.trailing = trailing
-			end
-			widget.desc, widget.laneFrame = desc, laneFrame
+			Build(laneFrame, desc, nextDesc)
 		end
+	end
+	-- Jittered, so the lanes' safety passes do not all land on one frame.
+	lane.nextRebuild = now + SAFETY_REBUILD * (0.75 + 0.5 * random())
+	if withdraw then
+		Reconcile(lane, marks, now)
+		Reconcile(lane, diamonds, now)
 	end
 	marks:Trim()
 	diamonds:Trim()
@@ -807,8 +1050,6 @@ local function RebuildLane(lane, now)
 	bars:Trim()
 	lane.dirty = false
 	lane.builtVersion = Store:LaneVersion(lane.key)
-	-- Jittered, so the lanes' safety passes do not all land on one frame.
-	lane.nextRebuild = now + SAFETY_REBUILD * (0.75 + 0.5 * random())
 end
 
 -- Single lane: the cooldown icons that would overlap step off the track. One
@@ -869,7 +1110,7 @@ local function OnUpdate()
 	for i = 1, #lanes do
 		local lane = lanes[i]
 		if allDirty or lane.dirty or lane.builtVersion ~= Store:LaneVersion(lane.key) or now >= (lane.nextRebuild or 0) then
-			RebuildLane(lane, now)
+			RebuildLane(lane, now, not laidOut)
 			rebuilt = true
 		end
 	end
@@ -1053,6 +1294,9 @@ function Renderer:Init()
 	frame:SetFrameStrata("MEDIUM")
 	frame:EnableMouse(false)
 	backdrop = frame:CreateTexture(nil, "BACKGROUND")
+	shadow = { frame:CreateTexture(nil, "BACKGROUND", nil, 1), frame:CreateTexture(nil, "BACKGROUND", nil, 1) }
+	shadow[1]:SetTexture(WHITE)
+	shadow[2]:SetTexture(WHITE)
 	backdrop:SetAllPoints()
 	backdrop:Hide()
 	if frame.SetClipsChildren then

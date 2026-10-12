@@ -41,6 +41,7 @@ local Skin = {
 	ATLAS = {
 		lineStart = "combattimeline-line-left",
 		lineEnd = "combattimeline-line-right",
+		lineBreak = "combattimeline-line-break-mask",
 		divider = "combattimeline-cooldown-divider",
 		pip = "combattimeline-pip",
 		trail = "combattimeline-line-icontrail",
@@ -88,17 +89,25 @@ end
 
 -- A left-to-right fade, turned to the axis: bright at the end-facing side
 -- (the later instant) when brightAtFinish, else at the start-facing side.
-function Skin.Gradient(texture, r, g, b, brightAtFinish)
+-- `alpha` is the bright end's (default 1). `across`: the fade runs across the
+-- axis instead, "finish" being the side positive across offsets go to.
+function Skin.Gradient(texture, r, g, b, brightAtFinish, alpha, across)
+	alpha = alpha or 1
 	if not (texture.SetGradient and CreateColor) then
-		texture:SetVertexColor(r, g, b, 1)
+		texture:SetVertexColor(r, g, b, alpha)
 		return
 	end
-	local faint, bright = CreateColor(r, g, b, 0), CreateColor(r, g, b, 1)
+	local faint, bright = CreateColor(r, g, b, 0), CreateColor(r, g, b, alpha)
 	local orient = Layout.orient
 	-- HORIZONTAL runs left to right and VERTICAL bottom to top: the finish
-	-- side is the max side when the axis runs that way (sign 1).
-	local flip = brightAtFinish ~= (orient.sign > 0)
-	texture:SetGradient(orient.axis, flip and bright or faint, flip and faint or bright)
+	-- side is the max side when the axis runs that way (sign 1). Across
+	-- offsets run up, or right when vertical: the max side.
+	local axis, sign = orient.axis, orient.sign
+	if across then
+		axis, sign = orient.vertical and "HORIZONTAL" or "VERTICAL", 1
+	end
+	local flip = brightAtFinish ~= (sign > 0)
+	texture:SetGradient(axis, flip and bright or faint, flip and faint or bright)
 end
 
 -- The now line across every lane: Native the cooldown divider with the pip
@@ -180,10 +189,13 @@ end
 -- The framed icon
 -- ---------------------------------------------------------------------------
 
+-- The icon and diamond art scrolls with its mark: unsnapped (Util.MovingTexture).
+local MovingTexture = Util.MovingTexture
+
 function Skin.CreateIconArt(owner)
 	local art = { owner = owner }
-	art.border = owner:CreateTexture(nil, "ARTWORK", nil, -2)
-	art.icon = owner:CreateTexture(nil, "ARTWORK", nil, 0)
+	art.border = MovingTexture(owner, "ARTWORK", -2)
+	art.icon = MovingTexture(owner, "ARTWORK", 0)
 	return art
 end
 
@@ -194,7 +206,7 @@ local function Overhang(texture, icon, k)
 end
 
 local function OverlayTexture(art, atlas, subLevel)
-	local texture = art.owner:CreateTexture(nil, "OVERLAY", nil, subLevel)
+	local texture = MovingTexture(art.owner, "OVERLAY", subLevel)
 	texture:SetAtlas(atlas)
 	texture:Hide()
 	return texture
@@ -232,6 +244,7 @@ function Skin.StyleIcon(art, size)
 		icon:SetTexCoord(0, 1, 0, 1)
 		if not art.mask then
 			art.mask = art.owner:CreateMaskTexture()
+			Util.NoSnap(art.mask)
 			art.mask:SetAtlas(ATLAS.mask)
 			art.mask:SetAllPoints(icon)
 			art.overlay = OverlayTexture(art, ATLAS.overlay, 0)
@@ -319,11 +332,11 @@ end
 -- Orientation never changes it.
 function Skin.CreateDiamond(owner)
 	local art = { owner = owner }
-	art.backing = owner:CreateTexture(nil, "ARTWORK", nil, -2)
+	art.backing = MovingTexture(owner, "ARTWORK", -2)
 	art.backing:SetTexture(Util.WHITE)
 	art.backing:SetRotation(pi / 4)
 	art.backing:SetPoint("CENTER", owner, "CENTER")
-	art.fill = owner:CreateTexture(nil, "ARTWORK", nil, 0)
+	art.fill = MovingTexture(owner, "ARTWORK", 0)
 	art.fill:SetTexture(Util.WHITE)
 	art.fill:SetRotation(pi / 4)
 	art.fill:SetPoint("CENTER", owner, "CENTER")
@@ -354,7 +367,7 @@ function Skin.StyleDiamond(art, radius, hollow)
 		if not art.strokes then
 			art.strokes = {}
 			for i = 1, #STROKES do
-				art.strokes[i] = owner:CreateTexture(nil, "ARTWORK", nil, 0)
+				art.strokes[i] = MovingTexture(owner, "ARTWORK", 0)
 				art.strokes[i]:SetTexture(Util.WHITE)
 			end
 		end
@@ -414,7 +427,7 @@ function Skin.SetDiamondPause(art, shown)
 	end
 	art.pauseKey = key
 	if not pause then
-		pause = { art.owner:CreateTexture(nil, "OVERLAY"), art.owner:CreateTexture(nil, "OVERLAY") }
+		pause = { MovingTexture(art.owner, "OVERLAY"), MovingTexture(art.owner, "OVERLAY") }
 		art.pause = pause
 	end
 	local owner, radius, orient = art.owner, art.radius, Layout.orient

@@ -12,13 +12,17 @@ local Addon = FourEverActionTimeline
 local Util, Layout = Addon.Util, Addon.Layout
 
 local GetTime, GetCVar = GetTime, GetCVar
-local max, min, sin, pi, remove = math.max, math.min, math.sin, math.pi, table.remove
+local abs, max, min, sin, pi, remove = math.abs, math.max, math.min, math.sin, math.pi, table.remove
 
 local WHITE = Util.WHITE
 local POP_ATLAS = "cast_standard_pipglow" -- shared with 4everSwingTimer
 local POP_TIME = 0.3
 local RING_TIME = 0.8
-local RING_COLOR = { 1.0, 0.93, 0.75 }
+local RING_COLOR = { 1.0, 0.93, 0.75 } -- also the highlight's
+-- The highlight (Single lane's urgency cue): the glow rises and falls once
+-- around a mark - Blizzard's HighlightGlow timing (0 to 0.7 and back over
+-- 0.4 s), a little stronger for the corner of the eye.
+local HIGHLIGHT_TIME, HIGHLIGHT_PEAK = 0.4, 0.9
 local POP_GROWTH = 0.4
 local STREAK_TIME = 0.3
 local STREAK_HEIGHT = 3
@@ -76,6 +80,17 @@ end
 function Effects:Pop(lane, t, color)
 	if layer and t then
 		Flash({ kind = "pop", lane = lane, t = t, duration = POP_TIME }, color, true)
+	end
+end
+
+-- Single lane: a mark crossed into its last 1.5 s - a glow `size` across,
+-- centred on the mark's widget, so it follows the mark.
+function Effects:Highlight(widget, size)
+	if layer then
+		local effect = { kind = "highlight", widget = widget, size = size, duration = HIGHLIGHT_TIME }
+		Flash(effect, RING_COLOR)
+		effect.texture:SetSize(size, size)
+		effect.texture:SetPoint("CENTER", widget, "CENTER")
 	end
 end
 
@@ -139,13 +154,16 @@ function Effects:Place(now)
 	for i = #live, 1, -1 do
 		local effect = live[i]
 		local progress = (now - effect.start) / effect.duration
-		local laneFrame = effect.lane.frame
-		if progress >= 1 or not laneFrame then
+		local laneFrame = effect.lane and effect.lane.frame
+		if progress >= 1 or (effect.lane and not laneFrame) then
 			Release(effect)
 			remove(live, i)
 		else
 			local texture = effect.texture
-			if effect.kind == "ring" then
+			if effect.kind == "highlight" then
+				-- Rises and falls; it stays on its widget (Effects:Highlight).
+				texture:SetAlpha(HIGHLIGHT_PEAK * (1 - abs(2 * progress - 1)))
+			elseif effect.kind == "ring" then
 				local along, ringAcross = SingleLane.RingPosition(effect.lane)
 				local size = Layout.iconSize * (0.9 + 1.2 * progress)
 				texture:SetSize(size, size)
@@ -165,7 +183,9 @@ function Effects:Place(now)
 					texture:SetSize(Layout:Extents(max(a2 - a1, 1), STREAK_HEIGHT))
 				end
 			end
-			texture:SetAlpha(1 - progress)
+			if effect.kind ~= "highlight" then
+				texture:SetAlpha(1 - progress)
+			end
 		end
 	end
 end

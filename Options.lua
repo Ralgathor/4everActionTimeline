@@ -99,6 +99,10 @@ function Options:Init()
 		{ "past", "Past side", "The ready spells sit before the now line (Single lane)." },
 		{ "future", "Future side", "The ready spells sit after the now line (Single lane)." },
 	}, "Which side of the now line the Single lane's ready row sits on.")
+	Dropdown("urgency", "Urgency cue", {
+		{ "highlight", "Highlight", "A mark flashes once as it comes within 1.5 s of the now line (Single lane)." },
+		{ "growth", "Growth", "A mark grows and brightens over its last 1.5 s (Single lane)." },
+	}, "How the Single lane shows that a swing, a cast or a cooldown is within your next GCD.")
 	Dropdown("skin", "Skin", {
 		{ "native", "Native", "Blizzard's Encounter Timeline and Cooldown Manager art." },
 		{ "flat", "Flat", "Plain lines, square icons, thin borders." },
@@ -117,8 +121,10 @@ function Options:Init()
 	Slider("laneHeight", "Lane height", 16, 48, 1, "Lane height in pixels; icons are 2 pixels smaller.")
 	Slider("laneSpacing", "Lane spacing", 0, 16, 1, "Space between lanes in pixels. The Native icon frame overhangs its icon by about a fifth of the icon on each side: raise this if neighbouring frames touch.")
 	Slider("scale", "Scale", 0.5, 2.0, 0.05, "Overall scale. Place the frame in Edit Mode.")
+	Slider("opacity", "Opacity", 0.1, 1.0, 0.05, "The whole timeline's opacity.")
 	Slider("backgroundAlpha", "Lane background (Detailed)", 0, 0.5, 0.05, "A faint band behind each lane of the Detailed layout (0 = none).")
 	Slider("singleBackgroundAlpha", "Backdrop (Single lane)", 0, 0.8, 0.05, "A dark panel behind the Single lane layout, for contrast over a bright scene (0 = none).")
+	Slider("singleShadowAlpha", "Line shadow (Single lane)", 0, 1, 0.05, "A soft shadow under the Single lane's track, for contrast without a panel (0 = none).")
 
 	-- Lanes
 	Checkbox("showMainhand", "Main-hand lane", "The main-hand swing lane (needs a main-hand weapon).")

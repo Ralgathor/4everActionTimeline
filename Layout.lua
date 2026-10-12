@@ -35,6 +35,7 @@
 --   onSwing    a landing that an on-next-swing ability rode (happened marks)
 --   castStart  (store entries) a cast that began earlier: the Single lane
 --              layout also draws its bar
+--   channel    a cast bar (or the store entry it comes from) is a channel's
 -- The Single lane layout (SingleLane.Adapt, run by the renderer after Collect)
 -- rewrites a descriptor in place with the fields below, which only it writes
 -- and only the renderer reads - a Collect never sets them, and a descriptor
@@ -168,6 +169,8 @@ function Layout:Compute()
 	self.chainDepth = self.single and 1 or math.huge
 	-- Single lane draws a cast as a bar (Casts, CollectHappened).
 	self.castBars = self.single
+	-- Single lane's urgency cue: one highlight flash instead of growth.
+	self.highlight = self.single and Addon:GetSetting("urgency") == "highlight"
 	self.invPast = 1 / max(past, 0.1)
 	self.orient = ORIENTATIONS[Addon:GetSetting("orientation")] or ORIENTATIONS.horizontal
 	self.skin = Addon:GetSetting("skin")
@@ -333,7 +336,7 @@ function Layout.CollectHappened(lane, now, out)
 			elseif time >= cull then
 				out[#out + 1] = { shape = entry.shape, t = time, icon = entry.icon, border = entry.border, color = entry.color, shake = entry.shake, onSwing = entry.onSwing }
 				if entry.castStart and Layout.castBars then
-					out[#out + 1] = { shape = "bar", tStart = entry.castStart, tEnd = time }
+					out[#out + 1] = { shape = "bar", tStart = entry.castStart, tEnd = time, channel = entry.channel }
 				end
 			end
 		end

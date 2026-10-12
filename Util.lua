@@ -131,9 +131,11 @@ function Util.PixelSize(region, units)
 	return units
 end
 
--- Turns off the client's pixel-grid snapping for a thin line: snapped, a
--- line about one pixel thick is drawn or dropped depending on where it
--- falls between pixels (Flat tracks vanished in some lanes, build 70235).
+-- Turns off the client's pixel-grid snapping: for a thin line, which
+-- snapped is drawn or dropped depending on where it falls between pixels
+-- (Flat tracks vanished in some lanes, build 70235), and for anything that
+-- scrolls, which snapped steps a pixel at a time instead of gliding
+-- (Blizzard's timeline event textures; VISUAL.md, Pixel grid).
 function Util.NoSnap(texture)
 	if texture.SetSnapToPixelGrid then
 		texture:SetSnapToPixelGrid(false)
@@ -141,6 +143,14 @@ function Util.NoSnap(texture)
 	if texture.SetTexelSnappingBias then
 		texture:SetTexelSnappingBias(0)
 	end
+end
+
+-- A texture that scrolls with the marks, unsnapped (the one constructor for
+-- them, so none is left snapped; VISUAL.md, Pixel grid).
+function Util.MovingTexture(owner, layer, subLevel)
+	local texture = owner:CreateTexture(nil, layer, nil, subLevel)
+	Util.NoSnap(texture)
+	return texture
 end
 
 -- An existing atlas's native size, or the fallback size.

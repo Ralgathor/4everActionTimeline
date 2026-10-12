@@ -556,7 +556,7 @@ numbers.
   not tracked in v1 — spell cooldowns only.
 - **Settings surface split**: the client's Settings vertical layout supports
   checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (layout, windows and width per layout, ready row side, Single lane backdrop, scale, lane height, spacing, GCD override, lane-kind
+  (layout, windows and width per layout, ready row side, Single lane backdrop and line shadow, urgency cue, scale, opacity, lane height, spacing, GCD override, lane-kind
   toggles, visibility, skin, orientation, lane background alpha, sink
   countdown —
   see `VISUAL.md`)
