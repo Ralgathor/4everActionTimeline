@@ -380,6 +380,58 @@ talents), or calibration needs manual overrides for talented spells.
 
 Verdict: **Not run** (Improved Judgement not available). The "base cooldowns ignore talents" claim stays open; mitigations are unchanged — `PLAYER_TALENT_UPDATE` marks the cache stale (it fired on this client at 20152.472), the combat-end re-read corrects it, and manual overrides remain.
 
+## Part H — Bar track follow-up (to run)
+
+For ADR-0006. Any character; H3 needs a hunter or any class with a
+ranged weapon equipped.
+
+### H1. Blizzard's cast bar art
+
+The mainline cast bar's atlases (`CastingBarFrameTemplates.xml`,
+Forever branch); the rig checks exact names.
+
+1. `/stl atlas ui-castingbar-frame ui-castingbar-background ui-castingbar-filling-standard ui-castingbar-filling-channel ui-castingbar-pip`
+2. `/stl atlas show ui-castingbar-frame ui-castingbar-background`, then
+   `/stl atlas show off`: does the frame read as a border around a bar,
+   and does it stretch to a long, 26 px tall bar without distorting?
+
+Gates: Bar track's border and body (Native); the fills are candidates for
+its casts and channels. With none, the `WHITE8X8` border stays.
+
+Verdict: **All five exist** ("5 checked, 0 missing", 2026-10-12). Shown at
+their atlas size, `ui-castingbar-frame` reads as a bar frame (dark rails
+top and bottom, a gold edge) and `ui-castingbar-background` as a grey
+stone fill. Whether the frame stretches to a long 26 px bar without
+distorting was not checked: a look to take when the bar is built.
+
+### H2. A link glyph — no candidate
+
+Blizzard's source names no link or chain atlas, so the linked-set mark is
+the fallback: a small corner badge drawn with `WHITE8X8`. Nothing to run
+unless a candidate turns up.
+
+### H3. Auto Shot icon and the weapon's base speed
+
+1. `/run print(C_Spell.GetSpellTexture(75))` - a file ID means the icon
+   resolves.
+2. With a ranged weapon equipped:
+   `/run local d=C_TooltipInfo and C_TooltipInfo.GetInventoryItem("player",18) for _,l in ipairs(d and d.lines or {}) do local t=l.rightText if t and t:find("Speed") then print(t, issecretvalue and issecretvalue(t)) end end`
+   Do it out of combat and once in combat.
+
+Expected: the icon resolves; the speed line is plain out of combat. Gates:
+whether the addon can compute the Auto Shot windup itself (base speed
+plain) or must wait for the library to expose it.
+
+Verdict: **Icon resolves, base speed plain** (2026-10-12).
+`GetSpellTexture(75)` returned 132369 (twice: the icon and the original
+icon). The ranged weapon's tooltip line read `Speed 2.30`, plain
+(`issecretvalue` false); one read, out of combat. A tooltip shows the
+weapon's base speed (not the hasted one), a fixed item stat: read it at
+equip and cache it per item, as the swing library's own
+`GetRangedBaseSpeed` does (the localized `SPEED` pattern on a hidden
+tooltip). The addon can compute the windup itself: 0.52 s x the library's
+ranged speed / the base speed.
+
 ## Gate decisions (2026-10-06)
 
 Session run on build 70235 (Paladin, Warrior level 6, Rogue). For what it

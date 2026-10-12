@@ -58,6 +58,27 @@ stays, since a later build can drop one.
 |---|---|---|---|
 | `Interface\Buttons\WHITE8X8` | path | shared | Track lines, now line, borders, Flat trail streak. |
 
+## Bar track (ADR-0006)
+
+| Asset | Kind | Status | Use |
+|---|---|---|---|
+| `UI-HUD-CoolDownManager-Bar-BG` | atlas | source | Bar track's body (Native). |
+| `UI-HUD-CoolDownManager-Bar` | atlas | source | Casts, channels and the Auto Shot windup filling the bar (Native), tinted. |
+| `Interface\Buttons\WHITE8X8` | path | shared | Bar track's border in both skins until a border atlas is chosen; Flat body and fills. |
+
+Probed (`PROBE_SESSION.md`, Part H) and still to choose:
+
+- `ui-castingbar-frame` / `-background` / `-filling-standard` /
+  `-filling-channel` / `-pip` - the mainline cast bar's art, all five
+  present in game (probe H1, 2026-10-12): a border and body for the bar,
+  fills for its casts and channels. Stretching the frame to a long 26 px
+  bar is still to be looked at. A border atlas cannot be cut at the now line and the seconds
+  scale; with it, the cuts become marks drawn over the border.
+- No link or chain atlas exists in the source: the linked-set mark is a
+  small corner badge in `WHITE8X8`.
+- The Auto Shot icon: the spell texture of spell 75
+  (`C_Spell.GetSpellTexture`, file 132369, probe H3), not an atlas.
+
 ## Candidates noted, not chosen
 
 - `uitools-icon-chevron-left` — the right chevron turned through tex

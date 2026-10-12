@@ -225,6 +225,13 @@ numbers.
     slots of the **ready row** in lane-set order; a **long cooldown** gets
     no slot (a ring on the now line marks its return);
   - sink lanes: one thin row each after the ready row.
+  **Bar track** (ADR-0006) maps them into one framed bar: hands as
+  diamonds on its edges, GCD as a tint or strip, casts filling its height,
+  returning cooldowns as icons inside it (overlaps form a card stack),
+  ready spells in a four-slot cap at its start, sink lanes as thin rows
+  under it. In both Single lane and Bar track, ranged becomes the Auto
+  Shot cast (windup and icon), its windup computed from the weapon's base
+  speed.
   A spell is a long cooldown when its cooldown is 30 s or more, unless
   the class data or the lane window says otherwise; a spell whose cooldown
   is not known yet counts as a rotation ability until it is.
@@ -556,7 +563,7 @@ numbers.
   not tracked in v1 — spell cooldowns only.
 - **Settings surface split**: the client's Settings vertical layout supports
   checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (layout, windows and width per layout, ready row side, Single lane backdrop and line shadow, urgency cue, scale, opacity, lane height, spacing, GCD override, lane-kind
+  (layout, windows and width per layout, ready row side, Single lane backdrop and line shadow, urgency cue, Bar track GCD style and seconds scale, scale, opacity, lane height, spacing, GCD override, lane-kind
   toggles, visibility, skin, orientation, lane background alpha, sink
   countdown —
   see `VISUAL.md`)
@@ -690,8 +697,11 @@ numbers.
   swap) — a library API ask; v1 copies 4everSwingTimer's classification
   rules until it ships.
 - The Auto Shot windup window — the library computes but does not expose
-  its internal cast-time value; a library API ask, and the ranged lane
-  shows landing marks only in v1.
+  its internal cast-time value (0.52 s x ranged speed / base speed); a
+  library API ask, now optional: the weapon's base speed reads plain from
+  its tooltip (`PROBE_SESSION.md` H3), so ADR-0006's Auto Shot cast
+  computes the windup itself (0.52 s x the library's ranged speed / the
+  base speed, read at equip and cached per item as the library does).
 - Cooldown Manager mirroring (probe-listed optional upgrade, never the
   foundation).
 - Logarithmic scale, overlap avoidance, labels or anchors that depend on

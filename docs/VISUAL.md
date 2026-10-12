@@ -80,11 +80,12 @@ a section says otherwise:
 
 ### Layouts
 
-- Two layouts, picked in a Settings dropdown (ADR-0005): **Single lane**
-  (default) folds every lane kind onto one track around the now line, for
-  peripheral reading; **Detailed** is the M7 layout, one lane per kind.
-  The rest of this document describes Detailed unless a rule says
-  otherwise.
+- Three layouts, picked in a Settings dropdown (ADR-0005, ADR-0006):
+  **Single lane** (default) folds every lane kind onto one track around
+  the now line, for peripheral reading; **Detailed** is the M7 layout, one
+  lane per kind; **Bar track** condenses Single lane into one framed bar
+  read like a cast bar. The rest of this document describes Detailed
+  unless a rule says otherwise.
 - Single lane visual values, taken from the layout study mock-up (the
   target look; sizes at lane height 26, which scale with it):
 
@@ -123,6 +124,15 @@ a section says otherwise:
   not filled) in a pale green - filled for melee, hollow for ranged, so
   shape tells them apart first (melee and auto shot do not run together in practice; when both are
   live, ranged sits a step further out so neither covers the other).
+  Planned (ADR-0006): ranged becomes the **Auto Shot cast** - the windup
+  (0.52 s x ranged speed / the weapon's base speed, read plain from its
+  tooltip, probe H3; the hunter standing still) drawn as a cast bar on the track in
+  teal 0.47 / 0.78 / 0.82, ending at the Auto Shot icon (full color for the
+  next shot, desaturated for the one after, fired ones fading); the reload
+  between windups stays empty, the time the hunter may move. Held (moving
+  keeps cancelling the shot) outlines the windup amber and borders its icon
+  amber; the delay span and the clip tick keep their rules. Without a
+  ranged weapon's base speed (no tooltip line), the hollow diamond stays.
   Without an off hand the space below stays empty: the lane never changes
   height mid-session.
 - Single lane, swing marks: one shape from future to past, so a landing
@@ -222,6 +232,31 @@ a section says otherwise:
   lane-start side across the track (top when horizontal, left when
   vertical); the ready row, then the engine-drawn rows, stack on the other
   side. A flip mirrors only the time axis.
+- **Bar track** (ADR-0006): Single lane's content in one framed bar the
+  height of a lane. Values from the layout study mock-up, at lane height
+  26 (they scale with it):
+
+  | Element | Value |
+  |---|---|
+  | Frame | the lane height; body dark at 88 % (Native: the Cooldown Manager bar backing; Flat: `WHITE8X8`); a 1 px light border at 38 % over a dark outline (`WHITE8X8` in both skins until the border probe), cut where the now line and the seconds scale cross it |
+  | Ready cap | at the bar's start, inside the frame behind a thin divider; four slots of 24, 2 apart, in lane order; a cooling slot is an empty outline; more ready rotation abilities than slots stack in the fourth (card stack) |
+  | Icons | 24 inside the border; Native an 18 px icon whose Cooldown Manager overlay fills the 24 (the overlay's overhang would leave the frame at 24); Flat the icon at 24 |
+  | Casts | the bar's full height: elapsed gold, still to run lighter; a channel green; the icon at the end, as in Single lane |
+  | GCD | Settings: Bar track GCD - **Tint** (default; the body tinted pale blue, 17 % still to run, 8 % elapsed fading) or **Strip** (4 px inside the bottom edge, 75 % / 30 %) |
+  | Swing diamonds | on the frame's edges: main hand on the top edge, off hand on the bottom edge; next landing, one chain diamond, landed ones fading, a parked hand dim on the now line, as in Single lane |
+  | Queued ability | its icon on the bar at the next landing; the diamond stays on the edge; the landed swing leaves the icon on the bar, fading |
+  | Returning cooldowns | icons only, desaturated, 60 % while far; beyond the window they park at the far edge, each further one tucked 12 px to the left, one chevron for all |
+  | Card stack | every icon ahead of the now line (a cast's end, a queued ability, Auto Shot, the cooldowns): icons closer than an icon's width group; facts in front of predictions, else the soonest; the others keep their own place when that already shows them, else peek out 5 px further each (about 0.08 s, too little to mislead); three show, then "+n" |
+  | Linked set | one icon with a link mark (a small corner badge; no link atlas exists), on the bar and in the cap |
+  | Now line | 2 px warm, 6 px beyond the frame on both sides, the pip above and a small diamond below; the border cut 8 px around it, so the frame itself marks now |
+  | Seconds scale | Settings: Bar track seconds scale, off by default: the border cut 4 px at 1, 3 and 5 s either side on both edges, a 5 px tick under the frame, the seconds under the future ticks |
+  | Urgency | the highlight: a step from the far alpha to full and one flash at 1.5 s; no growth (a full-height icon has no room) |
+  | Auto Shot | the Auto Shot cast (planned, as in Single lane): the windup fills the bar's height in teal, ending at the Auto Shot icon; held outlines it amber and borders its icon amber; the delay span is an amber line on the bottom edge; the clip tick sits on the top edge where a shot was due before a cast pushed it back |
+  | Engine-drawn lanes | thin rows under the frame, as in Single lane |
+
+- Bar track, orientation: all four. Vertical turns the bar: the top edge
+  becomes the lane-start side, as in Single lane; text (the "+n" and the
+  scale's seconds) stays upright.
 
 ### Time axis
 
@@ -459,6 +494,9 @@ is never desaturated.
   bright at the mark's new position to transparent at the old one, so a
   teal correction visibly points toward the now line (earlier) and an
   amber one away from it (later) — the bar addon's lunge and flinch.
+- Bar track fills its whole height with casts, channels and the Auto Shot
+  windup alike, so there the icon at a bar's end is the shape cue: each
+  fill ends in its own spell's icon.
 - No alternate palette in v1. The encoding check views the test-mode
   effect previews through a color-blindness simulator once (the client
   has one: the `colorblindSimulator` CVar). Blizzard's own colorblind
@@ -518,6 +556,9 @@ is never desaturated.
   secret (build 70205 smoke test). It is the only mark whose number is
   true in combat, and it offsets the sink's missing chevron and
   linear-only scale.
+- Bar track's "+n" (a count of stacked icons) and the seconds scale's
+  numbers (frame chrome) are the two exceptions: neither puts a number on
+  an estimate.
 - Any text the frame draws uses one of Blizzard's shadowed system fonts
   (`SystemFont_Shadow_*`, as the timeline's pip number and event names do),
   never a plain one: the shadow is what keeps it readable over the world.
