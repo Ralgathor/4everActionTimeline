@@ -654,13 +654,17 @@ local function RevealSpan(texture, region, u0, u1)
 	end
 end
 
+local BAR_END_INSET = 4 -- px: the bar border's rounded ends
+
 local function PlaceBar(bar, now)
 	local desc = bar.desc
 	if bar.region and desc.tStart <= now and now < desc.tEnd then
 		glowWanted, glowBar = desc.channel and "channel" or "cast", bar
 	end
-	local from = max(desc.tStart, Layout:CullEdge(now))
-	local to = min(desc.tEnd, Layout:FarEdge(now))
+	-- A span stops inside the border's rounded ends, not over them.
+	local endInset = BAR_END_INSET / Layout.pxPerSec
+	local from = max(desc.tStart, now - Layout.past + endInset)
+	local to = min(desc.tEnd, Layout:FarEdge(now) - endInset)
 	local laneFrame, thickness, across = bar.laneFrame, bar.thickness, desc.across
 	if desc.fade then
 		ApplyBarFade(bar, desc.tEnd, now)
