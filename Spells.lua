@@ -93,19 +93,22 @@ local function Retint(lane)
 	end
 end
 
+local LinkKey -- below: the key a linked set shares
+
 local function Collect(lane, now, out)
 	Layout.CollectHappened(lane, now, out)
 	local state = lane.state
+	local link = LinkKey(lane)
 	if state.phase == "cooling" and state.readyAt then
 		-- With its sink on, the engine-drawn icon is this spell's only future
 		-- mark: no calibrated guess racing the truth.
 		if not lane.sink then
-			out[#out + 1] = { t = state.readyAt, icon = lane.icon, predicted = true, desaturated = not state.exact }
+			out[#out + 1] = { t = state.readyAt, icon = lane.icon, predicted = true, desaturated = not state.exact, linkKey = link }
 		end
 	elseif state.phase == "cooling" then
 		out[#out + 1] = { atNow = true, icon = lane.icon, desaturated = true } -- the unknown-cooldown mark
 	else
-		out[#out + 1] = { atNow = true, icon = lane.icon, tint = lane.tint }
+		out[#out + 1] = { atNow = true, icon = lane.icon, tint = lane.tint, linkKey = link }
 	end
 end
 
@@ -150,7 +153,7 @@ local function Duration(lane)
 	return Addon:GetLaneValue(lane.base, "override") or (entry and entry.duration)
 end
 
--- A long cooldown (Single lane: no ready-row slot, a ring on the now line when
+-- A long cooldown (no ready-row slot, a ring on the now line when
 -- it returns): flagged in the lane window, tagged in the class data, or a
 -- known cooldown of 30 s or more. A spell whose cooldown is not known yet
 -- counts as a rotation ability.
@@ -194,6 +197,22 @@ local function Linked(lane)
 		end
 	end
 	return out
+end
+
+-- A linked set's shared key (the lowest base spell ID in it), or nil for a
+-- spell sharing its cooldown with none: the bar draws a set returning
+-- together as one icon with the link mark (VISUAL.md, Layouts, Bar track).
+LinkKey = function(lane)
+	local key
+	for other in pairs(Linked(lane)) do
+		if other.base and (not key or other.base < key) then
+			key = other.base
+		end
+	end
+	if key and lane.base and lane.base < key then
+		key = lane.base
+	end
+	return key
 end
 
 -- ---------------------------------------------------------------------------

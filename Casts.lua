@@ -53,14 +53,12 @@ local pendingInstant -- an instant's mark, held to the end of its frame
 function lane:Collect(now, out)
 	Layout.CollectHappened(self, now, out)
 	if cast then
-		if cast.finish and Layout.castBars then
-			-- Single lane: the cast is a bar from its start to its completion.
+		if cast.finish then
+			-- The cast is a bar from its start to its completion.
 			out[#out + 1] = { shape = "bar", tStart = cast.start, tEnd = cast.finish, channel = cast.channel }
+			out[#out + 1] = { t = cast.finish, icon = cast.icon, predicted = true, desaturated = not cast.live }
 		else
 			out[#out + 1] = { atNow = true, icon = cast.icon }
-		end
-		if cast.finish then
-			out[#out + 1] = { t = cast.finish, icon = cast.icon, predicted = true, desaturated = not cast.live }
 		end
 	end
 end

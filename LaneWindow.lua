@@ -294,7 +294,7 @@ local function Build()
 	note:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -LIST_LEFT, 12)
 	note:SetJustifyH("LEFT")
 	note:SetText("Drag a row to reorder; the mouse wheel scrolls. Engine: the true remaining cooldown, drawn by the game (at most "
-		.. Addon.Sinks.MAX .. "). Cooldown: a manual value for a spell that cannot be learned; empty to clear. Long: no slot in the Single lane's ready row (cooldowns of 30 s or more count anyway).")
+		.. Addon.Sinks.MAX .. "). Cooldown: a manual value for a spell that cannot be learned; empty to clear. Long: no slot in the ready row (cooldowns of 30 s or more count anyway).")
 	frame:Hide()
 end
 

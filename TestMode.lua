@@ -53,7 +53,7 @@ local function SyncPhase(lane, now)
 	local phase = lane:Phase(now)
 	if phase ~= lane.phase then
 		if lane.phase == "cooling" and phase == "idle" then
-			Effects:Ring(lane) -- a cooldown came back (Single lane)
+			Effects:Ring(lane) -- a cooldown came back
 		end
 		lane.phase = phase
 		Renderer:MarkDirty(lane)
@@ -147,6 +147,9 @@ function ranged:Phase(now)
 	return place < RANGED_SWINGING and "swinging" or "paused"
 end
 
+-- The test ranged hand's Auto Shot windup, from a fixed base speed.
+local TEST_WINDUP = Addon.Hands.Windup(PAUSED_SPEED, Addon.Hands.TEST_BASE_SPEED)
+
 function ranged:Advance(now)
 	local start, place, cycle = RangedPhase(now)
 	if place < RANGED_SWINGING then
@@ -154,7 +157,8 @@ function ranged:Advance(now)
 			local at, key = start + k * PAUSED_SPEED, cycle * RANGED_CYCLE + k
 			if at <= now and key > self.lastLanded then
 				self.lastLanded = key
-				Ingest({ kind = "swing", lane = self.key, time = at, icon = SpellIcon(PAUSED_ICON_SPELL) })
+				-- A shot keeps its windup, drawn as a cast behind it.
+				Ingest({ kind = "swing", lane = self.key, time = at, icon = SpellIcon(PAUSED_ICON_SPELL), castStart = at - TEST_WINDUP, autoShot = true })
 			end
 		end
 	end
@@ -165,19 +169,16 @@ function ranged:Collect(now, out)
 	Happened(self, now, out)
 	local start, place = RangedPhase(now)
 	local icon = SpellIcon(PAUSED_ICON_SPELL)
+	self.castShots = nil
 	if place < RANGED_SWINGING then
 		local expected = start + (floor(place / PAUSED_SPEED) + 1) * PAUSED_SPEED
-		out[#out + 1] = { t = expected, icon = icon, predicted = true }
-		Layout.AppendChain(out, expected, PAUSED_SPEED, icon, now)
+		-- Auto Shot as a cast (ADR-0006), as the ranged hand draws it.
+		self.castShots = true
+		Addon.Hands.AppendShots(out, expected, PAUSED_SPEED, TEST_WINDUP, now)
 		return
 	end
 	-- Paused: what was left of the swing when it froze, kept ahead of the now line.
-	local horizon = Layout.future + PAUSED_SPEED
-	local n, depth = 0, Layout.chainDepth
-	while n <= depth and PAUSED_LEFT + n * PAUSED_SPEED <= horizon do
-		out[#out + 1] = { atNow = true, after = PAUSED_LEFT + n * PAUSED_SPEED, icon = icon, dim = true, desaturated = n > 0, chain = n > 0, paused = true }
-		n = n + 1
-	end
+	Layout.AppendPaused(out, PAUSED_LEFT, PAUSED_SPEED, icon)
 end
 
 -- ---------------------------------------------------------------------------
@@ -245,14 +246,9 @@ function cast:Collect(now, out)
 	Happened(self, now, out)
 	local start = CastStart(self.next)
 	if start <= now then
-		-- The in-flight cast: its icon rides the now line (Single lane: a bar
-		-- from its start), and its completion is full color (the live
-		-- cast-time read is plain, probe 11).
-		if Layout.castBars then
-			out[#out + 1] = { shape = "bar", tStart = start, tEnd = start + CAST_TIME, channel = CastChannels(self.next) }
-		else
-			out[#out + 1] = { atNow = true, icon = self.icon }
-		end
+		-- The in-flight cast: a bar from its start, and its completion is full
+		-- color (the live cast-time read is plain, probe 11).
+		out[#out + 1] = { shape = "bar", tStart = start, tEnd = start + CAST_TIME, channel = CastChannels(self.next) }
 		out[#out + 1] = { t = start + CAST_TIME, icon = self.icon, predicted = true }
 	end
 end

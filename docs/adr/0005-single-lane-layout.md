@@ -1,6 +1,7 @@
 # Single lane layout beside Detailed
 
 Status: accepted (2026-10-11).
+Its layout choice is superseded by ADR-0007 (2026-10-13): Single lane is no longer a layout; its placement rules are the bar's.
 
 After in-game sessions on M7, the lane-per-kind layout read well when
 looked at but poorly in peripheral view: two or three hand lanes, the GCD

@@ -48,14 +48,17 @@ a section says otherwise:
 
 ### Skins
 
-- **Native skin (default)** — the Encounter Timeline + Cooldown Manager
-  family: the `combattimeline-*` track art (line ends, pip, icon trail,
-  highlight) and Cooldown Manager–framed icons
-  (`UI-HUD-CoolDownManager-Mask` + `UI-HUD-CoolDownManager-IconOverlay`).
-  The timeline reads as a native 12.x HUD element beside the player's
-  Cooldown Manager and the boss timeline.
-- **Flat skin (option)** — `WHITE8X8` lines, square-cropped icons, 1 px
-  borders; no atlas dependency.
+- **Native skin (default)** — Blizzard's cast bar family: its background,
+  fills, spark and glow, the swing timer's border, the cast bar's name box
+  behind the ready row, the Cooldown Manager bar art for the GCD (Layouts).
+  The bar reads as the cast bar and swing timer players already watch.
+  (Until ADR-0007 it was the Encounter Timeline + Cooldown Manager family:
+  the `combattimeline-*` track art and Cooldown Manager–framed icons; the
+  divider and pip remain as the now line's fallback.)
+- **Flat skin (option)** — a `WHITE8X8` body, border and lines,
+  square-cropped icons, 1 px borders; no atlas dependency.
+- Icons are plain in both skins: edge-cropped in a 1 px dark border, as
+  the cast bar shows its icon.
 - A Settings dropdown chooses the skin. Every Native atlas is guarded with
   an atlas-exists check at load; a missing atlas falls back to the Flat
   equivalent for that element only, never an error.
@@ -66,202 +69,136 @@ a section says otherwise:
 
 - Three choices: **horizontal** (default: past left, future right),
   **horizontal flipped** (future left), and **vertical** (with its own
-  flip). All lanes, window bars, edge clamp and the sink follow the
-  orientation.
+  flip). The bar, its marks, the ready row, edge clamp and the sink follow
+  the orientation.
 - The sink stays possible in every orientation: `StatusBar` supports
   `SetOrientation("VERTICAL")` and `SetReverseFill`, so the fill — and the
   icon anchored to its leading edge — runs from the now line toward the
   future edge whichever way that is. Each orientation's sink layout joins
   the by-eye encoding check.
-- Orientation-dependent art (line ends, trail, divider, shadow) is rotated
-  through texture coordinates, the way `EncounterTimelineOrientedTextureMixin`
-  does; its turns keep the line art's shadow on the bottom edge when
-  horizontal and the right edge when vertical.
+- Orientation-dependent art (the bar's body, border and fills, the spark
+  and glow, the chevron) is rotated through texture coordinates, the way
+  `EncounterTimelineOrientedTextureMixin` does.
 
 ### Layouts
 
-- Three layouts, picked in a Settings dropdown (ADR-0005, ADR-0006):
-  **Single lane** (default) folds every lane kind onto one track around
-  the now line, for peripheral reading; **Detailed** is the M7 layout, one
-  lane per kind; **Bar track** condenses Single lane into one framed bar
-  read like a cast bar. The rest of this document describes Detailed
-  unless a rule says otherwise.
-- Single lane visual values, taken from the layout study mock-up (the
-  target look; sizes at lane height 26, which scale with it):
+- One layout, **Bar track** (ADR-0006; the only one since ADR-0007): every
+  lane kind but the sink lanes on one framed bar read like a cast bar,
+  placed by Single lane's rules (ADR-0005) - the hands on its edges, casts
+  and returning cooldowns in it, the ready spells in a row under it.
+  Single lane and Detailed, the two other layouts built in M7 and M8, were
+  removed on 2026-10-13; where a section below keeps a note about them it
+  is history.
+- The bar's values, from the layout study mock-up and the M9 in-game
+  tuning, at bar height 26 (they scale with it):
 
   | Element | Value |
   |---|---|
-  | Length | its own setting, default 700 px (10 s at about 58 px/s; the mock-up drew about 87 px/s); linear (open: a squeezed far future) |
-  | Backdrop | one dark panel behind everything, 0.05 / 0.06 / 0.05 at 20 % (Settings: Backdrop; 60 % before the line shadow) |
-  | Line shadow | black, 70 % at the track fading to none half the track's extent out, both sides (Settings: Line shadow) |
-  | Track | 2 px white at 28 % (Flat) |
-  | Now line | warm 0.91 / 0.85 / 0.66 at 75 %, 2 px, a diamond at its lane-start end (Native: the pip; Flat: 1-3-5-3-1 line widths, as wide as tall) |
-  | Hand diamonds | half diagonal 5, on a dark outline 1.5 px out; main hand 0.91 / 0.93 / 0.96, off hand 0.79 / 0.69 / 0.54, ranged hollow 0.62 / 0.86 / 0.66 |
-  | Next landing | 75 % while far, 100 % and one highlight flash from its last 1.5 s (Urgency cue: Growth grows it 5 to 8 and ramps the alpha instead) |
-  | Chain, parked | half diagonal 4 at 55 %, parked 5 at 50 %; grey at 80 % of the color's luminance |
-  | Cast bar | 6 px; elapsed 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 %; its icon 16; a channel 0.55 / 0.82 / 0.30, still to run 0.58 / 0.66 / 0.50 |
-  | GCD band | 0.67 / 0.78 / 1.0, 20 % still to run, 10 % elapsed (fading) |
-  | Returning cooldown | icon 16, 60 % while far (the Encounter Timeline's Long-track alpha), 100 % and one highlight flash from its last 1.5 s (Growth: 16 to 24 and an alpha ramp) |
-  | Ready row | slots 18, 2 apart, the nearest 12 from the now line; a cooling slot is an empty outline (1 px, 30 %) |
-
-- As built (M8): a few things differ from the rules below. The swing
-  diamonds are drawn in both skins - a tinted square on a dark outline, the
-  hollow ranged one on a dark translucent diamond - not Blizzard's pip, whose
-  color, shape and missing outline read poorly over a bright scene. A paused
-  hand's next diamond wears a pause glyph (Native: Blizzard's pause icon;
-  Flat: two bars), because a frozen diamond alone reads as stuck. The Flat
-  track is 2 px in Single lane (a lone 1 px line could straddle two screen
-  pixels and vanish; Pixel grid has the general rule). The Long flag in the
-  lane window only forces a spell long: it
-  cannot make a cooldown of 30 s or more count as rotation. A texture's
-  alpha is one value on this client (SetAlpha replaces SetVertexColor's):
-  colors go in opaque and the alpha is set after them.
-- Single lane design: settled round by round in the Single lane session
-  (2026-10-11), from the layout study mock-up. The lane mapping is in
-  `SPEC.md` (Layouts); the look is below.
-- Single lane, hands: the main hand above the track, the off hand below
-  it. Ranged shares the main hand's side as a hollow diamond (an outline,
-  not filled) in a pale green - filled for melee, hollow for ranged, so
-  shape tells them apart first (melee and auto shot do not run together in practice; when both are
-  live, ranged sits a step further out so neither covers the other).
-  Planned (ADR-0006): ranged becomes the **Auto Shot cast** - the windup
-  (0.52 s x ranged speed / the weapon's base speed, read plain from its
-  tooltip, probe H3; the hunter standing still) drawn as a cast bar on the track in
-  teal 0.47 / 0.78 / 0.82, ending at the Auto Shot icon (full color for the
-  next shot, desaturated for the one after, fired ones fading); the reload
-  between windups stays empty, the time the hunter may move. Held (moving
-  keeps cancelling the shot) outlines the windup amber and borders its icon
-  amber; the delay span and the clip tick keep their rules. Without a
-  ranged weapon's base speed (no tooltip line), the hollow diamond stays.
-  Without an off hand the space below stays empty: the lane never changes
-  height mid-session.
-- Single lane, swing marks: one shape from future to past, so a landing
-  never changes look as it crosses the now line. The next landing is a
-  full-color diamond (drawn in both skins, on a dark outline) - the
-  library's expiry is fact-grade. The cadence chain is
-  1 deep: one smaller, desaturated diamond after the next landing.
-  Landed swings stay diamonds and fade over the past window. A queued
-  ability replaces the next landing's diamond with its own small icon
-  (about 14 px), and the landed swing keeps that icon. A paused hand's
-  diamonds freeze and dim; a parked hand (auto-attack off) shows a dim,
-  desaturated diamond on the now line. The next landing's diamond grows
-  (about 5 to 8 px at the default height) over its last 1.5 s, the same
-  urgency rule as a returning cooldown (Urgency has the open alternative).
-- Single lane, casts: a bar about 6 px thick on the track, in a warm gold
-  kept clear of the GCD's blue - solid where elapsed, lighter where still
-  to run - from cast start to completion, the spell icon at its
-  completion end. Gold is Blizzard's casting color (the classic cast bar
-  fills yellow). The icon is full color during the cast (the cast time
-  is a plain read, `PROBES.castTimePlain`, as for Detailed's completion
-  mark). Once complete, bar and icon fade over the past window. A
-  stopped, failed or interrupted cast cuts the bar where it stopped and
-  moves the icon there with the red border and the across-lane shake; the
-  unrun part vanishes with the red pop (Stopped casts) - red is
-  Blizzard's interrupted color. Pushback jumps the
-  bar's end and icon with the amber pop. A channel draws the same bar to
-  its end, in green, as Blizzard fills a channel - a yellow green, clear
-  of the ranged diamond's pale green and the teal pop (and a bar on the
-  track, not a diamond on the main-hand side); one stopped early follows
-  the stopped-cast rule. An instant
-  ability leaves its icon on the track at the moment of use, fading the
-  same way.
-- Single lane, returning cooldowns: a desaturated icon on the track at
-  the predicted return, 16 px, growing to about 24 px and full opacity
-  over its last 1.5 s (still desaturated). The growth replaces the motion
-  trail, which would overlap the mark before it on a shared track.
-  Overlapping icons step 8 px off the track, up then down (clear of the
-  swing diamonds); past three levels they overlap slightly. Linked
-  cooldowns draw one icon per spell, stepped as a pair. An overdue icon
-  pins on the now line until the engine confirms the spell is ready; past
-  the far edge the edge clamp and chevron apply.
-- Single lane, ready row: under the track, on the past side, ending at
-  the now line. Each rotation ability has a fixed slot in lane-window
-  order; a slot shows a faint empty outline while its spell cools down and
-  fills when it is ready, so the row never reorders or changes width. The
-  slots keep Detailed's state tints (blue resource-short, grey unusable,
-  desaturated unknown cooldown), so the row reads "pressable now". A
-  return flashes a ring on the slot. The row is the Encounter Timeline's
-  sorted-track idea - fixed slots, not time positions - applied to what
-  is ready.
-- Single lane, ready row side: a Settings dropdown, **Past side**
-  (default) or **Future side**. Past side keeps a returning cooldown moving
-  one way (it crosses the now line into its slot) and leaves the future
-  side to what is arriving; the row's width follows its slot count, not
-  the past window - the frame widens on its past side to fit the slots.
-  Future side starts the slots at the now line, for players who keep their
-  eyes ahead of it. Either side follows the orientation.
-- Single lane, long cooldowns: a spell whose cooldown is not yet known
-  (uncalibrated, no class-data tag) counts as a rotation ability and keeps
-  a slot until its cooldown is learned - the one case where the ready row
-  changes width. Long cooldowns get no slot. While cooling they ride the track
-  like any returning cooldown, clamped at the far edge with the chevron
-  while beyond the future window; on their return a ring flashes on the
-  now line and the icon leaves the track.
-- Single lane, GCD: a faint band across the lane's full height, behind
-  every mark (Native: the Cooldown Manager bar art; Flat: `WHITE8X8`),
-  in Detailed's pale whitish blue. Where the GCD still has to run the band
-  is at its full faint strength; the elapsed part is dimmer and fades with
-  age over the past window, so idle gaps between GCDs show. No edge strip.
-  An off-GCD ability opens no band. The band is a tint behind the marks,
-  not a mark: source-certainty saturation applies to marks only, so the
-  part still to run may be the stronger one (Detailed's window bar, a mark,
-  keeps elapsed full color and unelapsed desaturated).
-- Single lane, hand effects (Hand-lane effects, Color-blind safety): the
-  reposition pop flashes on the diamond unchanged; the correction streak
-  runs on the hand's side of the track from old to new diamond, tapered
-  as before. Held: the ranged diamond's outline turns amber (ranged is
-  the only hollow diamond, so held is one outline, not two). Delay span: a thin amber
-  line (about 2 px) on the ranged side of the track, clear of the cast
-  bar. Clip mark: a small red tick on the hand's side - the lane's only
-  tick shape, so it never reads as a landing. The across-lane shake moves
-  only the affected diamond or icon, across the track.
-- Single lane, engine-drawn lanes: one thin row each (18 px, 16 px
-  icons) under the ready row, on the same time axis. The sink rules hold:
-  the spell's predicted mark leaves the track while its sink is on, the
-  pinned icon shows no chevron, the countdown text stays optional. Its
-  ready-row slot (or, for a long cooldown, the now-line ring) still
-  follows the plain off-cooldown read.
-- Single lane, settings: each layout keeps its own past and future window
-  (Single lane default 1.5 s / 10 s) and length; the Settings sliders edit
-  the active layout's values. The lane height setting sizes the track and
-  everything on it scales with it - the pixel sizes above are those at the
-  default height. Edit Mode, visibility and skin are shared. Lane spacing
-  is the gap between the track, the ready row and the engine-drawn rows;
-  the lane background alpha is Detailed's (Single lane has the backdrop).
-- Single lane, orientation: all four orientations. The main hand takes the
-  lane-start side across the track (top when horizontal, left when
-  vertical); the ready row, then the engine-drawn rows, stack on the other
-  side. A flip mirrors only the time axis.
-- **Bar track** (ADR-0006): Single lane's content in one framed bar the
-  height of a lane. Values from the layout study mock-up, at lane height
-  26 (they scale with it):
-
-  | Element | Value |
-  |---|---|
-  | Frame | the lane height; body dark at 88 % (Native: the Cooldown Manager bar backing; Flat: `WHITE8X8`); a 1 px light border at 38 % over a dark outline (`WHITE8X8` in both skins until the border probe), cut where the now line and the seconds scale cross it |
-  | Ready cap | at the bar's start, inside the frame behind a thin divider; four slots of 24, 2 apart, in lane order; a cooling slot is an empty outline; more ready rotation abilities than slots stack in the fourth (card stack) |
-  | Icons | 24 inside the border; Native an 18 px icon whose Cooldown Manager overlay fills the 24 (the overlay's overhang would leave the frame at 24); Flat the icon at 24 |
-  | Casts | the bar's full height: elapsed gold, still to run lighter; a channel green; the icon at the end, as in Single lane |
-  | GCD | Settings: Bar track GCD - **Tint** (default; the body tinted pale blue, 17 % still to run, 8 % elapsed fading) or **Strip** (4 px inside the bottom edge, 75 % / 30 %) |
-  | Swing diamonds | on the frame's edges: main hand on the top edge, off hand on the bottom edge; next landing, one chain diamond, landed ones fading, a parked hand dim on the now line, as in Single lane |
-  | Queued ability | its icon on the bar at the next landing; the diamond stays on the edge; the landed swing leaves the icon on the bar, fading |
-  | Returning cooldowns | icons only, desaturated, 60 % while far; beyond the window they park at the far edge, each further one tucked 12 px to the left, one chevron for all |
+  | Length | the Length setting, default 700 px (10 s at about 58 px/s); linear |
+  | Frame | the bar height. Native: the cast bar's background as the body under Blizzard's swing timer border, stretched over the bar whole (drawn for a bar of any size, where the cast bar's frame is drawn for one), casts and channels filling it with the cast bar's own fills, the art at its own proportions from the cast's start (a short cast shows its first part, cropped; a long one stretches it) and revealed up to now as Blizzard's cast bar reveals it, Auto Shot with its grey fill tinted teal, the GCD the Cooldown Manager bar art tinted blue. Flat: a body dark at 88 %, a 1 px light border at 38 % over a dark outline, cut where the now line and the seconds scale cross it |
+  | Ready row | under the bar, as Blizzard's cast bar shows the spell's name in the box under its bar: a box behind the bar reaching 16 px below it, the bar's width less 2 px at each end so it meets the inside of the border's rounded ends (Native: the cast bar's name box, `ui-castingbar-textbox`; Flat: a dark box at 60 %), the ready row in it with padding (slots of 12, 4 apart, the nearest 12 from the now line, 2 px clear above and below, at least 5 px from the box's end - the frame and bar widen for a long row, bars such as a cast running on to the bar's start and every happened element fading over all the past the bar shows, at one rate), a cooling slot an empty outline (1 px, 30 %). (First built as a four-slot cap inside the bar at its start; moved under it, 2026-10-13, giving the bar its whole length back.) |
+  | Icons | filling the bar inside its border, plain in both skins (edge-cropped, a 1 px dark border), as Blizzard's cast bar shows its icon; no Cooldown Manager frame. Flat: 24 inside its 1 px border. Native: 18, inside the swing timer border by what 4everSwingTimer keeps clear inside it (4 px across); casts and the GCD tint keep the same inset |
+  | Casts | the bar's full height inside the border: elapsed gold 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 % (Flat; Native: the cast bar's own fills, untinted); a channel green 0.55 / 0.82 / 0.30, still to run 0.58 / 0.66 / 0.50; the icon at the end |
+  | GCD | Settings: GCD - **Tint** (default; Native: the Cooldown Manager bar art tinted pale blue 0.67 / 0.78 / 1.0, 60 % still to run, 30 % elapsed fading; Flat: the same tint plain - a fainter band vanished over the bar's grey body) or **Strip** (4 px inside the bottom edge, 75 % / 30 %) |
+  | Swing diamonds | half diagonal 5, on a dark outline 1.5 px out, on the frame's edges: main hand (and ranged) on the top edge, off hand on the bottom edge; main hand 0.91 / 0.93 / 0.96, off hand 0.79 / 0.69 / 0.54, ranged hollow 0.62 / 0.86 / 0.66; next landing 75 % while far, then full with one flash; one chain diamond (half diagonal 4 at 55 %), landed ones fading, a parked hand dim (50 %) on the now line; grey at 80 % of the color's luminance |
+  | Queued ability | its icon in the bar at the next landing; the diamond stays on the edge; the landed swing leaves the icon in the bar, fading |
+  | Returning cooldowns | icons only, desaturated, 60 % while far (the Encounter Timeline's Long-track alpha); beyond the window they park at the far edge, each further one tucked 5 px to the left (a stack's peek), one chevron for all |
   | Card stack | every icon ahead of the now line (a cast's end, a queued ability, Auto Shot, the cooldowns): icons closer than an icon's width group; facts in front of predictions, else the soonest; the others keep their own place when that already shows them, else peek out 5 px further each (about 0.08 s, too little to mislead); three show, then "+n" |
-  | Linked set | one icon with a link mark (a small corner badge; no link atlas exists), on the bar and in the cap |
-  | Now line | 2 px warm, 6 px beyond the frame on both sides, the pip above and a small diamond below; the border cut 8 px around it, so the frame itself marks now |
-  | Seconds scale | Settings: Bar track seconds scale, off by default: the border cut 4 px at 1, 3 and 5 s either side on both edges, a 5 px tick under the frame, the seconds under the future ticks |
-  | Urgency | the highlight: a step from the far alpha to full and one flash at 1.5 s; no growth (a full-height icon has no room) |
-  | Auto Shot | the Auto Shot cast (planned, as in Single lane): the windup fills the bar's height in teal, ending at the Auto Shot icon; held outlines it amber and borders its icon amber; the delay span is an amber line on the bottom edge; the clip tick sits on the top edge where a shot was due before a cast pushed it back |
-  | Engine-drawn lanes | thin rows under the frame, as in Single lane |
+  | Linked set | one icon with a link mark (a small corner badge; no link atlas exists) on the bar; in the ready row a slot per spell, each wearing the link mark |
+  | Now line | Native: the cast bar's spark (`ui-castingbar-pip`, additive) across the bar and 6 px beyond, no pip; the border art is not cut. While a cast runs through it, the glow Blizzard's cast bar trails behind its spark (a channel: its shadow), its height scaled to the bar, its width Blizzard's 37 px (the casts here are shorter than its cast bar), masked to the cast's elapsed fill, so it never shows outside the art. Flat: 2 px warm 0.91 / 0.85 / 0.66 at 75 %, 6 px beyond the frame on both sides, a stepped diamond (1-3-5-3-1 line widths, as wide as tall) on its top end, and on its bottom end too while no ready row sits under the bar; the border cut 8 px around it, so the frame itself marks now |
+  | Seconds scale | Settings: Seconds scale, off by default: the border cut 4 px at 1, 3 and 5 s either side on both edges, a 5 px tick under the frame, the seconds under the future ticks |
+  | Urgency | the highlight: a step from the far alpha to full and one flash at 1.5 s (Urgency) |
+  | Auto Shot | the Auto Shot cast (below): the windup fills the bar's height in teal, ending at the Auto Shot icon |
+  | Engine-drawn lanes | thin rows (18 px, 16 px icons) under the ready row |
 
-- Bar track, orientation: all four. Vertical turns the bar: the top edge
-  becomes the lane-start side, as in Single lane; text (the "+n" and the
-  scale's seconds) stays upright.
+- Hands. Filled for melee, hollow for ranged, so shape tells them apart
+  first. Without an off hand the bottom edge stays empty: the frame never
+  changes height mid-session. One shape from future to past, so a landing
+  never changes look as it crosses the now line; the next landing is full
+  color - the library's expiry is fact-grade. A paused hand's diamonds
+  freeze and dim, its next diamond wearing a pause glyph (Native:
+  Blizzard's pause icon; Flat: two bars), because a frozen diamond alone
+  reads as stuck. The diamonds are drawn in both skins - a tinted square on
+  a dark outline, the hollow ranged one on a dark translucent diamond - not
+  Blizzard's pip, whose color, shape and missing outline read poorly over a
+  bright scene.
+- Auto Shot (ADR-0006): ranged is the **Auto Shot cast** - the windup
+  (0.52 s x ranged speed / the weapon's base speed, read plain from its
+  tooltip, probe H3; the hunter standing still) drawn as a cast in the bar
+  in teal 0.47 / 0.78 / 0.82, ending at the Auto Shot icon (full color for
+  the next shot, desaturated for the one after, fired ones fading); the
+  reload between windups stays empty, the time the hunter may move. Held
+  (moving keeps cancelling the shot) borders its icon amber; the delay
+  span is an amber line on the bar's bottom edge, clear of the casts; the
+  clip tick sits on the hand's edge. Without a ranged weapon's base speed (no
+  tooltip line), the hollow diamond stays on the top edge.
+- Casts: from cast start to completion, the spell icon at its completion
+  end. Gold is Blizzard's casting color (the classic cast bar fills
+  yellow); a channel is green, as Blizzard fills one - a yellow green,
+  clear of the ranged diamond's pale green and the teal pop. The icon is
+  full color during the cast (the cast time is a plain read,
+  `PROBES.castTimePlain`). Once complete, bar and icon fade over the past.
+  A stopped, failed or interrupted cast cuts the bar where it stopped and
+  moves the icon there with the red border and the across-lane shake; the
+  unrun part vanishes with the red pop (Stopped casts) - red is Blizzard's
+  interrupted color. Pushback jumps the bar's end and icon with the amber
+  pop. An instant ability leaves its icon in the bar at the moment of use,
+  fading the same way.
+- Returning cooldowns: an overdue icon pins on the now line until the
+  engine confirms the spell is ready; past the far edge the edge clamp and
+  chevron apply.
+- Ready row: each rotation ability has a fixed slot in lane-window order; a
+  slot shows a faint empty outline while its spell cools down and fills
+  when it is ready, so the row never reorders or changes width. The slots
+  keep the state tints (blue resource-short, grey unusable, desaturated
+  unknown cooldown), so the row reads "pressable now". A return flashes a
+  ring on the slot. The row is the Encounter Timeline's sorted-track idea -
+  fixed slots, not time positions - applied to what is ready.
+- Ready row side: a Settings dropdown, **Past side** (default) or **Future
+  side**. Past side keeps a returning cooldown moving one way (it crosses
+  the now line into its slot) and leaves the future side to what is
+  arriving; the row's width follows its slot count, not the past window -
+  the frame widens on its past side to fit the slots. Future side starts
+  the slots at the now line, for players who keep their eyes ahead of it.
+  Either side follows the orientation.
+- Long cooldowns: a spell whose cooldown is not yet known (uncalibrated, no
+  class-data tag) counts as a rotation ability and keeps a slot until its
+  cooldown is learned - the one case where the ready row changes width.
+  Long cooldowns get no slot; while cooling they ride the bar like any
+  returning cooldown; on their return a ring flashes on the now line and
+  the icon leaves the bar. The Long flag in the lane window only forces a
+  spell long: it cannot make a cooldown of 30 s or more count as rotation.
+- GCD: behind every mark; where the GCD still has to run it is at its full
+  strength, the elapsed part dimmer and fading with age, so idle gaps
+  between GCDs show. An off-GCD ability opens nothing. The tint is not a
+  mark: source-certainty saturation applies to marks only, so the part
+  still to run may be the stronger one.
+- Hand effects (Hand-lane effects, Color-blind safety): the reposition pop
+  flashes on the diamond; the correction streak runs on the hand's edge
+  from old to new diamond. Held: the Auto Shot icon's border, or the
+  hollow diamond's outline, turns amber. The across-lane shake moves only
+  the affected diamond or icon, across the bar.
+- Engine-drawn lanes: the sink rules hold - the spell's predicted mark
+  leaves the bar while its sink is on, the pinned icon shows no chevron,
+  the countdown text stays optional. Its ready-row slot (or, for a long
+  cooldown, the now-line ring) still follows the plain off-cooldown read.
+- Settings: one past and future window (default 1.5 s / 10 s) and one
+  length. The bar height setting sizes the bar and everything on it scales
+  with it - the pixel sizes above are those at the default height. Engine
+  lane spacing is the gap above each engine-drawn row.
+- Orientation: all four. The main hand takes the lane-start edge (top when
+  horizontal, left when vertical); the ready row, then the engine-drawn
+  rows, stack on the other side. A flip mirrors only the time axis. Text
+  (the "+n" and the scale's seconds) stays upright.
+- As built: the card stack's offsets are fixed at each rebuild. The past
+  window starts a pixel in from the bar's start, not half an icon: a mark
+  has faded out by then. A texture's alpha is one value on this client
+  (SetAlpha replaces SetVertexColor's): colors go in opaque and the alpha
+  is set after them.
 
 ### Time axis
 
-- Linear in both layouts: one pixel rate from the past edge to the future
-  edge, so a gap between two marks is a duration the eye can compare.
+- Linear: one pixel rate from the past edge to the future edge, so a gap between two marks is a duration the eye can compare.
 - Blizzard's Encounter Timeline is not linear. Its track is split by
   remaining time: a **Short** track near the now end, drawn to scale over
   the length of the line art; a **Medium** track, a fixed 55 px holding a
@@ -269,7 +206,7 @@ a section says otherwise:
   (38 px each), events sorted rather than placed by time, Long-track icons
   at 60 % alpha, each slotted track behind a `combattimeline-cooldown-divider`.
   An event slides from slot to linear track as its time comes.
-- Open (needs an ADR-0005 amendment): squeeze the far future the same
+- Open (needs an ADR): squeeze the far future the same
   way - the near 4-5 s to scale over most of the length, the rest of the
   window in a short compressed stretch - so a 10 s window stops costing
   700 px. Against it: a non-linear axis breaks "equal gaps, equal time"
@@ -279,32 +216,20 @@ a section says otherwise:
 
 ### Lanes and tracks
 
-- Every lane draws its own track line through its middle. Native: the
-  `combattimeline-line-left` / `-right` pair — the left segment over the
-  past window, the right one over the future window, meeting at the now
-  line. Flat: a 1 px line (2 px in Single lane), its width rounded to
-  whole screen pixels (Pixel grid).
-- Line breaks: Blizzard cuts gaps into its line with
-  `combattimeline-line-break-mask` at 1, 3, 5, 7, 9 and 11 s (one every
-  2 s from 1 s) - not under its icons. The gaps are its only time scale:
-  no ticks, no numbers, nothing added. A texture takes at most three
-  masks, so they are shared between the two line segments.
-- Here the line breaks 1, 3 and 5 s either side of the now line (in the
-  window), in both layouts: the timeline's seconds scale, the one cue that
-  lets the eye read "about 2 s away" without counting pixels. Native: the
-  mask, three per line segment (past breaks on the start segment, future
-  ones on the end segment); Flat: the line drawn in segments with a 3 px
-  gap. No break sits under the now line.
-- A **lane background alpha** slider (default 0, Blizzard's
-  `BackgroundAlpha` default) adds a faint band behind each lane for players
-  who want it. Blizzard's background is not a band: it is the line's
-  shadow atlas (`combattimeline-line-shadow`, `-vertical`) behind the line,
-  at that alpha. Single lane draws a line shadow of its own instead (Layouts):
-  two black gradient bands fading out from the track, in both skins - the
-  atlas, stretched to the track's extent, read as a dark block (build 70235).
-- Lane order runs along the cross-axis: top to bottom when horizontal
-  (hands on top), left to right when vertical (hands on the left). A flip
-  mirrors the time axis only, never the lane order.
+- Every lane but the sink lanes draws on the one bar (Layouts); the sink
+  lanes keep a thin row each under the ready row, in lane order.
+- The bar has no track line: the frame and its border carry the time axis.
+  Its seconds scale (optional) cuts the border at 1, 3 and 5 s either side
+  of the now line - Blizzard's line breaks moved onto the frame
+  (Blizzard cuts gaps into its own line with
+  `combattimeline-line-break-mask` at 1, 3, 5, 7, 9 and 11 s; the gaps are
+  its only time scale).
+- History: Detailed and Single lane drew a line per track
+  (`combattimeline-line-left` / `-right`, Flat a 1 or 2 px line) broken
+  at 1, 3 and 5 s, a lane background band, and in Single lane a line
+  shadow and a backdrop panel; all removed with those layouts (ADR-0007).
+- Rows run along the cross-axis: top to bottom when horizontal, left to
+  right when vertical. A flip mirrors the time axis only, never the rows.
 
 ### Pixel grid
 
@@ -319,44 +244,41 @@ a section says otherwise:
   `texelSnappingBias="0.0" snapToPixelGrid="false"`, which "makes the
   translations visually smoother": at the default length a mark moves about
   one pixel per frame, and a snapped one steps. Every texture that scrolls -
-  the icon art, the diamonds, ticks, bars, the trail, the chevron - is made
+  the icon art, the diamonds, ticks, bars, the chevron - is made
   by `Util.MovingTexture` (unsnapped); a ready-row slot's outline stays
   snapped.
-- The thin still lines (Flat tracks, the now line) are unsnapped too,
+- The thin still lines (the now line) are unsnapped too,
   because a snapped 1 px line was drawn or dropped depending on where it
   fell between pixels (build 70235). With line widths rounded to whole
   pixels they could return to snapping; untried.
 
 ### Now line
 
-- Native: `combattimeline-cooldown-divider` stretched across every lane,
-  with the `combattimeline-pip` diamond at the lane-start end. Flat: a 2 px
-  white line at 0.6 alpha (Single lane: warm, 75 %, with a drawn diamond).
-  The divider art is built as a short section divider, so its look at full
-  frame height is a by-eye check item.
+- Native: the cast bar's spark across the bar (Layouts); where its atlas
+  is missing, `combattimeline-cooldown-divider` with the
+  `combattimeline-pip` diamond at the lane-start end. Flat: a 2 px warm
+  line at 75 % with a drawn diamond.
 - On Blizzard's timeline the pip is not the now point: it sits on the line
-  at the highlight time (5 s), with that number under it. Here it caps the
-  now line. Players of the boss timeline may read a pip as "the warning
-  point"; accepted while no highlight time is drawn (Urgency).
+  at the highlight time (5 s), with that number under it. In the fallback
+  it caps the now line.
 
 ### Marks
 
-- Native: Blizzard's event icon — the icon masked by
-  `UI-HUD-CoolDownManager-Mask`, `UI-HUD-CoolDownManager-IconOverlay` on
-  top, the overlay overhanging the icon by a few pixels (Blizzard anchors
-  it at −7/+6/+7/−7 on a 35 px icon, scaled with the icon), so lane
-  spacing must clear the overhang. Flat: the icon edge-cropped with a 1 px
-  black border. The sink icon wears the same frame.
-- The frame clips its children, so in Native it pads the outer lanes by the
-  overlay's overhang (and half the pip) across the axis.
-- Icon size = lane height − 2 px. The lane height setting is the icon size
-  control; no separate icon scale. (Blizzard's timeline has one - Edit
-  Mode's Icon Size, apart from the frame's size; Frame chrome.)
+- Both skins: the icon edge-cropped with a 1 px black border, filling the
+  bar inside its border, as the cast bar shows its icon. The sink icon
+  wears the same frame. (Until ADR-0007, Native framed icons as
+  Blizzard's event icon: the Cooldown Manager mask and overlay.)
+- The frame clips its children, so it pads the bar across the axis by the
+  now line's reach past it.
+- Icon size follows the bar height setting; no separate icon scale.
+  (Blizzard's timeline has one - Edit Mode's Icon Size, apart from the
+  frame's size; Frame chrome.)
 - **Stacking**: what matters more draws on top. Blizzard raises event
   frames by severity in steps of 10 and puts paused events below active
   ones. Here: the next landing above its chain, an active hand above a
   paused one, a mark about to return above a distant one, every mark above
-  the GCD band and the cast bar.
+  the GCD tint and the cast fills; a card stack's front above the icons it
+  covers.
 
 ### Mark motion
 
@@ -384,17 +306,14 @@ a section says otherwise:
 
 ### Urgency
 
-- Built: the next landing, a queued ability's icon and a returning
-  cooldown change once as they cross 1.5 s (one GCD) - Settings, Urgency
-  cue (Single lane):
-  - **Highlight** (default): the mark steps from its far alpha to full and
-    plays one flash - the pop's glow in the return ring's color, rising to
-    0.9 and falling over 0.4 s (Blizzard's HighlightGlow timing, a little
-    stronger), around an icon at 1.5× its size, around a diamond at 2.6×.
-    The mark does not grow, so stepped cooldown icons are spaced for 16 px.
-  - **Growth**: the M8 ramp - it grows (diamond 5 to 8, icon 16 to 24) and
-    brightens over the 1.5 s.
-- The motion trail (Detailed) fades in over the same 1.5 s.
+- Built: the next landing, a queued ability's icon, the next Auto Shot and
+  a returning cooldown change once as they cross 1.5 s (one GCD): the mark
+  steps from its far alpha to full and plays one flash - the pop's glow in
+  the return ring's color, rising to 0.9 and falling over 0.4 s
+  (Blizzard's HighlightGlow timing, a little stronger), around an icon at
+  1.5× its size, around a diamond at 2.6×. Nothing grows: an icon filling
+  the bar has no room. (Single lane offered a Growth cue and Detailed a
+  motion trail over the same 1.5 s; both removed with those layouts.)
 - Blizzard's rule is a moment, not a ramp: at a highlight time (5 s by
   default, a player setting, marked on the line by the pip and its number)
   the icon plays one glow and swirl (0.6 s), then pulses (1.0 → 1.1 → 0.9,
@@ -418,7 +337,7 @@ is learned:
 | unusable, resource-short | blue tint `0.5, 0.5, 1.0` |
 | unusable, other | grey tint `0.4, 0.4, 0.4` |
 | unknown-cooldown | desaturated |
-| parked (hand) | dimmed weapon icon |
+| parked (hand) | dimmed, desaturated diamond |
 
 No outline anywhere in the idle family: blue keeps Blizzard's
 not-enough-mana meaning. Out-of-range red (`0.64, 0.15, 0.15`) is not used
@@ -439,8 +358,7 @@ is never desaturated.
 ### Stopped casts
 
 - A stopped, failed or interrupted cast's happened mark is the icon at
-  full color with a **red border** — Native: the Cooldown Manager overlay
-  tinted red; Flat: the 1 px border in red. The icon stays readable (which
+  full color with a **red border** (its 1 px border, both skins). The icon stays readable (which
   spell failed); red stays the cast-failure color shared with the bar
   addon and Blizzard's cast bar (interrupted: red), and avoids Blizzard's
   out-of-range red tint.
@@ -461,21 +379,19 @@ is never desaturated.
 - **Jump, never glide**: a repositioned mark moves in one frame (Blizzard's
   0.45 s icon translation would show wrong instants mid-glide).
 - **Correction streak**: from the old position to the new, in the pop's
-  color, fading within ~0.3 s — Native: `combattimeline-line-icontrail`
-  stretched over the jump; Flat: a `WHITE8X8` streak. The timeline's
+  color, fading within ~0.3 s — a `WHITE8X8` streak, both skins. The timeline's
   equivalent of the bar addon's directional burst (teal lunge, amber
   flinch). Also drawn from an early-landing happened mark back to the
   abandoned prediction.
 - **Pop budget**: teal once per correction; amber once per retry chain
   (later sawtooth jumps get the streak only); red once per reset.
-- **Held**: the ranged predicted mark's frame border turns amber (Native:
-  the Cooldown Manager overlay tinted; Flat: the 1 px border) for the
-  whole retry chain, cleared when the shot fires.
-- **Delay span**: an amber window bar along the ranged lane's track, same
-  geometry as the GCD window bar (elapsed full color), from the first
-  retry to the fired shot.
-- **Clip mark**: a small red tick (~⅓ lane height, 2 px wide) on the track
-  at the reset instant — a tick, not an icon, so it never reads as a
+- **Held**: the next Auto Shot icon's border (or the hollow ranged
+  diamond's outline) turns amber for the whole retry chain, cleared when
+  the shot fires.
+- **Delay span**: a thin amber line (2 px) on the bar's bottom edge, from
+  the first retry to the fired shot.
+- **Clip mark**: a small red tick (~⅓ bar height, 2 px wide) on the hand's
+  edge at the reset instant — a tick, not an icon, so it never reads as a
   landed swing. The reset also plays the red pop and the across-lane shake
   on the predicted mark, as for stopped casts.
 - **Overdue**: the next-landing mark pinned at the now line, unchanged in
@@ -494,7 +410,7 @@ is never desaturated.
   bright at the mark's new position to transparent at the old one, so a
   teal correction visibly points toward the now line (earlier) and an
   amber one away from it (later) — the bar addon's lunge and flinch.
-- Bar track fills its whole height with casts, channels and the Auto Shot
+- The bar fills its whole height with casts, channels and the Auto Shot
   windup alike, so there the icon at a bar's end is the shape cue: each
   fill ends in its own spell's icon.
 - No alternate palette in v1. The encoding check views the test-mode
@@ -510,12 +426,12 @@ is never desaturated.
   no chevron — Lua cannot tell whether it is pinned — so a pinned sink
   icon and a pinned readable mark look different; accepted.
 - Asset (probe 14, build 70235): `uitools-icon-chevron-right` (20×20,
-  white, so it takes the track color), turned through tex coords for every
+  white), turned through tex coords for every
   orientation — mirrored when flipped, rotated when vertical — so
   `-left` is not needed. The other
   candidates seen (`common-icon-forwardarrow`, `NPE_ArrowRight`) are
   pre-colored yellow and were passed over. Fallback in both skins is a
-  small triangle of two rotated `WHITE8X8` strokes in the track color.
+  small triangle of two rotated `WHITE8X8` strokes in white.
   Size ~⅓ of the icon, just outside the icon's outer edge so it never
   covers the icon.
 - The clamp is this addon's Long track (Time axis): Blizzard parks distant
@@ -524,21 +440,22 @@ is never desaturated.
 
 ### GCD window bar
 
-- Native: the Cooldown Manager bar art (`UI-HUD-CoolDownManager-Bar`,
-  `-Bar-BG`). Flat: `WHITE8X8`.
+- Native: the Cooldown Manager bar art (`UI-HUD-CoolDownManager-Bar`),
+  tinted, as a tint over the bar or a strip (Layouts). Flat: `WHITE8X8`.
 - Color: a pale, whitish blue (near the swing timer's GCD tint) — kept
   clear of Blizzard's not-enough-mana blue `0.5, 0.5, 1.0`.
-- The full-color/desaturated split at the now line needs no extra divider;
-  the now line already draws it.
+- The split at the now line needs no extra divider; the now line already
+  draws it.
 
 ### Paused and queued
 
-- Native adds Blizzard's own timeline overlays on top of the SPEC
-  treatment: `combattimeline-fx-pause` (+ `-pause-icon`) on a paused hand's
-  frozen, dimmed marks; `combattimeline-fx-queued` on the main-hand
-  predicted mark while it shows the queued ability's icon.
-- Flat keeps the SPEC treatment alone: dim for paused, icon swap for
-  queued. Both join the by-eye encoding check.
+- Paused: the hand's diamonds freeze and dim, the next one wearing a pause
+  glyph (Native: Blizzard's `combattimeline-fx-pause-icon`; Flat: two
+  bars). Queued: the ability's icon rides the bar at the next landing, its
+  diamond kept on the edge. No overlay on icons (they are plain); until
+  ADR-0007 Native added Blizzard's `combattimeline-fx-pause` and
+  `-queued` overlays to Detailed's icon marks. Both join the by-eye
+  encoding check.
 - Blizzard's versions of the same states: the pause icon is 16 px in the
   icon's bottom-right corner, with a small bump (1 → 1.1 → 1 over 0.5 s)
   when it appears; queued adds three bouncing dots
@@ -556,7 +473,7 @@ is never desaturated.
   secret (build 70205 smoke test). It is the only mark whose number is
   true in combat, and it offsets the sink's missing chevron and
   linear-only scale.
-- Bar track's "+n" (a count of stacked icons) and the seconds scale's
+- The card stack's "+n" (a count of stacked icons) and the seconds scale's
   numbers (frame chrome) are the two exceptions: neither puts a number on
   an estimate.
 - Any text the frame draws uses one of Blizzard's shadowed system fonts
@@ -574,12 +491,10 @@ is never desaturated.
 
 ### Frame chrome
 
-- None. The lanes and tracks are the frame, as in Blizzard's Encounter
-  Timeline; the lane background alpha slider covers players who want a
-  band. Single lane is the exception: its backdrop panel (Layouts), the
-  mock-up's dark ground. Blizzard gets the same contrast with no panel - a
-  shadow under the line, a border on each icon, a dark outline on each
-  diamond - so with the line shadow in, the backdrop default drops to 20 %.
+- The bar is the frame (Layouts): its body gives the marks their contrast,
+  as the cast bar's does. No panel or background behind it. (Detailed had
+  none and a lane background slider; Single lane a backdrop panel and a
+  line shadow; all removed with them, ADR-0007.)
 - The frame is not an Edit Mode system, so Blizzard's selection
   highlight does not draw for it: while Edit Mode is open the frame shows
   its own placement handle — a translucent band over its bounds and a
@@ -588,8 +503,7 @@ is never desaturated.
   opacity, orientation, icon direction, background alpha, icon size,
   countdown, text, highlight time. This addon has the size (scale),
   opacity (a Settings slider, 0.1 to 1, the whole frame), orientation and
-  flips, background alpha and countdown; it has no icon size apart from
-  the lane height.
+  flips, and countdown; it has no icon size apart from the bar height.
 
 ### Settings window
 
@@ -608,34 +522,23 @@ is never desaturated.
 
 ### Motion trail
 
-- The **next** predicted mark on each lane — whatever its source — draws a
-  motion trail during its last **1.5 s** before the now line (one GCD:
-  "lands within your next GCD"). Deeper cadence-chain marks never trail.
-  The onset is a constant, not a setting. Detailed only: Single lane's
-  growth replaces it.
-- Native: `combattimeline-line-icontrail`, `ADD` blend, at its atlas
-  size. Flat: a `WHITE8X8` streak in the lane's track color, fading to
-  transparent toward the now line, 64 px long. Either lies on the mark's
-  now-facing side, its end 10 px into the icon (Blizzard's
-  `UpdateTrailLayout`), and fades in over the 1.5 s. (Blizzard fades it in
-  over the first 10 % of the Short track and out quickly when the event
-  leaves it.)
-- The sink icon never trails: Lua cannot read its position, so the 1.5 s
-  onset cannot be timed honestly. Happened marks and now-line marks never
-  trail.
+- Removed with Detailed (ADR-0007). It drew `combattimeline-line-icontrail`
+  (Flat: a `WHITE8X8` streak) behind each lane's next predicted mark over
+  its last 1.5 s; the flash (Urgency) is the bar's cue for the same moment.
 
 ## Open from the Blizzard review (2026-10-12)
 
 Built and checked in game (2026-10-12): moving marks unsnapped, line
 breaks, withdrawn predictions fading, green channels, the opacity slider.
 Built, in-game check pending: the highlight moment (Urgency), predictions
-fading in (Mark motion), the line shadow with the backdrop at 20 %
-(Layouts). Still open - each described in its section, none decided:
+fading in (Mark motion). (The line breaks and the line shadow went with
+Detailed and Single lane, ADR-0007.) Still open - each described in its
+section, none decided:
 
 | Item | Section | Cost |
 |---|---|---|
 | Still lines snapped again | Pixel grid | small, untried |
-| Squeezed far future | Time axis | large, an ADR-0005 amendment |
+| Squeezed far future | Time axis | large, a new ADR |
 
 ## Verified facts (Forever branch source; live 12.1.0.69933 re-read 2026-10-12)
 

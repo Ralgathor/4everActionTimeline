@@ -26,6 +26,7 @@ Store.lua
 Layout.lua
 Skin.lua
 SingleLane.lua
+BarTrack.lua
 Effects.lua
 Sinks.lua
 Renderer.lua

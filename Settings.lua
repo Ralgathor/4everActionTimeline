@@ -10,20 +10,15 @@
 local Addon = FourEverActionTimeline
 
 local DEFAULTS = {
-	-- "single" (every lane kind on one track) | "detailed" (a lane per kind);
-	-- ADR-0005. Each layout keeps its own past and future window.
-	layout = "single",
-	pastWindow = 5, -- Detailed: seconds left of the now line
-	futureWindow = 5, -- Detailed: seconds right of the now line
-	singlePastWindow = 1.5, -- Single lane
-	singleFutureWindow = 10,
-	-- Single lane's length: the mock-up's time scale needs room (Detailed: width).
-	singleWidth = 700,
-	-- Single lane: the ready row's slots end at the now line ("past") or start at it ("future").
+	-- Seconds on the past and future side of the now line (ADR-0006: the bar
+	-- reads what is coming, so the past is short).
+	pastWindow = 1.5,
+	futureWindow = 10,
+	-- The ready row's slots end at the now line ("past") or start at it ("future").
 	readyRowSide = "past",
-	width = 420, -- pixels along the time axis; the time scale follows from it
-	laneHeight = 26, -- pixels; icons are laneHeight - 2
-	laneSpacing = 4,
+	width = 700, -- pixels along the time axis; the time scale follows from it
+	laneHeight = 26, -- pixels: the bar's height
+	laneSpacing = 4, -- between the bar and each engine-drawn lane's row
 	scale = 1.0,
 	opacity = 1.0, -- the whole frame (the boss timeline's Edit Mode Transparency)
 	visibility = "combat", -- "combat" | "always" | "active"
@@ -31,17 +26,10 @@ local DEFAULTS = {
 	-- "horizontal" (past left) | "horizontalFlipped" | "vertical" (past at
 	-- the bottom) | "verticalFlipped"
 	orientation = "horizontal",
-	backgroundAlpha = 0, -- Detailed: a faint band behind each lane
-	-- Single lane: a dark panel behind the track and the ready row, so the
-	-- marks keep their contrast over a bright scene.
-	singleBackgroundAlpha = 0.2,
-	-- Single lane: a soft shadow under the track line, the contrast Blizzard's
-	-- boss timeline gets instead of a panel (VISUAL.md, Frame chrome).
-	singleShadowAlpha = 0.7,
-	-- Single lane: how a mark says "within your next GCD" - "highlight" (one
-	-- flash as it crosses 1.5 s, Blizzard's highlight time) | "growth" (it
-	-- grows and brightens over its last 1.5 s).
-	urgency = "highlight",
+	-- The GCD as a "tint" of the bar's body or a "strip" along its far edge;
+	-- the seconds scale (cuts and ticks at 1, 3 and 5 s).
+	barGcd = "tint",
+	barScale = false,
 	-- Per-hand lane toggles; a lane also needs the weapon equipped.
 	showMainhand = true,
 	showOffhand = true,
@@ -66,25 +54,9 @@ function Addon:GetSetting(key)
 	return value
 end
 
--- The settings each layout keeps its own value of: Single lane's key for
--- each (Detailed uses the key itself).
-local SINGLE_KEYS = {
-	pastWindow = "singlePastWindow",
-	futureWindow = "singleFutureWindow",
-	width = "singleWidth",
-}
-
--- The key holding the active layout's value of a per-layout setting.
-function Addon:LayoutKey(key)
-	if self:GetSetting("layout") == "single" then
-		return SINGLE_KEYS[key] or key
-	end
-	return key
-end
-
--- The active layout's past and future window, in seconds.
+-- The past and future window, in seconds.
 function Addon:GetWindow()
-	return self:GetSetting(self:LayoutKey("pastWindow")), self:GetSetting(self:LayoutKey("futureWindow"))
+	return self:GetSetting("pastWindow"), self:GetSetting("futureWindow")
 end
 
 function Addon:SetSetting(key, value)

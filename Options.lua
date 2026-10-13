@@ -18,25 +18,14 @@ Addon.Options = Options
 
 local VAR_PREFIX = "4everActionTimeline."
 local category
--- The per-layout sliders' proxies (they edit the active layout's value), and
--- the hook that refreshes them when the layout changes.
-local layoutSettings = {}
-local RefreshLayoutSettings
 
--- `perLayout` makes the proxy edit the active layout's value of `key`.
-local function Proxy(key, varType, name, perLayout)
-	local function Key()
-		return perLayout and Addon:LayoutKey(key) or key
-	end
+local function Proxy(key, varType, name)
 	return Settings.RegisterProxySetting(category, VAR_PREFIX .. key, varType, name, Addon.DEFAULTS[key],
 		function()
-			return Addon:GetSetting(Key())
+			return Addon:GetSetting(key)
 		end,
 		function(value)
-			Addon:SetSetting(Key(), value)
-			if key == "layout" and RefreshLayoutSettings then
-				RefreshLayoutSettings()
-			end
+			Addon:SetSetting(key, value)
 		end)
 end
 
@@ -44,16 +33,12 @@ local function Checkbox(key, name, tooltip)
 	Settings.CreateCheckbox(category, Proxy(key, Settings.VarType.Boolean, name), tooltip)
 end
 
-local function Slider(key, name, low, high, step, tooltip, perLayout)
+local function Slider(key, name, low, high, step, tooltip)
 	local options = Settings.CreateSliderOptions(low, high, step)
 	if options.SetLabelFormatter and MinimalSliderWithSteppersMixin then
 		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right)
 	end
-	local setting = Proxy(key, Settings.VarType.Number, name, perLayout)
-	if perLayout then
-		layoutSettings[key] = setting
-	end
-	Settings.CreateSlider(category, setting, options, tooltip)
+	Settings.CreateSlider(category, Proxy(key, Settings.VarType.Number, name), options, tooltip)
 end
 
 local function Dropdown(key, name, entries, tooltip)
@@ -65,16 +50,6 @@ local function Dropdown(key, name, entries, tooltip)
 		return container:GetData()
 	end
 	Settings.CreateDropdown(category, Proxy(key, Settings.VarType.String, name), Entries, tooltip)
-end
-
--- The per-layout sliders show the active layout's values: push them through
--- the proxies when the layout changes.
-function RefreshLayoutSettings()
-	for key, setting in pairs(layoutSettings) do
-		if setting.SetValue then
-			setting:SetValue(Addon:GetSetting(Addon:LayoutKey(key)))
-		end
-	end
 end
 
 function Options:Init()
@@ -91,40 +66,34 @@ function Options:Init()
 	}, "When the timeline frame is shown. Test mode and Edit Mode always show it.")
 
 	-- Look
-	Dropdown("layout", "Layout", {
-		{ "single", "Single lane", "Every lane kind on one track around the now line, for reading at a glance." },
-		{ "detailed", "Detailed", "One lane per kind: the hands, the GCD, casts and each spell." },
-	}, "How the timeline is laid out. Each layout keeps its own past and future window.")
 	Dropdown("readyRowSide", "Ready row side", {
-		{ "past", "Past side", "The ready spells sit before the now line (Single lane)." },
-		{ "future", "Future side", "The ready spells sit after the now line (Single lane)." },
-	}, "Which side of the now line the Single lane's ready row sits on.")
-	Dropdown("urgency", "Urgency cue", {
-		{ "highlight", "Highlight", "A mark flashes once as it comes within 1.5 s of the now line (Single lane)." },
-		{ "growth", "Growth", "A mark grows and brightens over its last 1.5 s (Single lane)." },
-	}, "How the Single lane shows that a swing, a cast or a cooldown is within your next GCD.")
+		{ "past", "Past side", "The ready spells sit before the now line." },
+		{ "future", "Future side", "The ready spells sit after the now line." },
+	}, "Which side of the now line the ready row under the bar sits on.")
+	Dropdown("barGcd", "GCD", {
+		{ "tint", "Tint", "The GCD tints the bar's body." },
+		{ "strip", "Strip", "The GCD is a strip along the bar's bottom edge, leaving its body to casts and icons." },
+	}, "How the bar draws the GCD.")
+	Checkbox("barScale", "Seconds scale", "Cuts the bar's border at 1, 3 and 5 s either side of the now line, with a tick and the seconds under it.")
 	Dropdown("skin", "Skin", {
-		{ "native", "Native", "Blizzard's Encounter Timeline and Cooldown Manager art." },
-		{ "flat", "Flat", "Plain lines, square icons, thin borders." },
+		{ "native", "Native", "Blizzard's cast bar and swing timer art." },
+		{ "flat", "Flat", "A plain dark bar with a thin border." },
 	}, "The timeline's art. A Native element whose art is missing on this client falls back to Flat.")
 	Dropdown("orientation", "Orientation", {
-		{ "horizontal", "Horizontal", "Past on the left, future on the right; lanes top to bottom." },
+		{ "horizontal", "Horizontal", "Past on the left, future on the right." },
 		{ "horizontalFlipped", "Horizontal, flipped", "Future on the left, past on the right." },
-		{ "vertical", "Vertical", "Future at the top, past at the bottom; lanes left to right." },
+		{ "vertical", "Vertical", "Future at the top, past at the bottom." },
 		{ "verticalFlipped", "Vertical, flipped", "Future at the bottom, past at the top." },
-	}, "Which way time runs. A flip mirrors the time axis only, never the lane order.")
+	}, "Which way time runs.")
 
 	-- Time and size
-	Slider("pastWindow", "Past window (s)", 0.5, 10, 0.5, "Seconds shown on the past side of the now line (for the active layout).", true)
-	Slider("futureWindow", "Future window (s)", 2, 15, 0.5, "Seconds shown on the future side of the now line (for the active layout). Predictions further away wait at the far edge.", true)
-	Slider("width", "Length", 200, 1200, 10, "The timeline's length along the time axis in pixels, for the active layout; the time scale follows from it.", true)
-	Slider("laneHeight", "Lane height", 16, 48, 1, "Lane height in pixels; icons are 2 pixels smaller.")
-	Slider("laneSpacing", "Lane spacing", 0, 16, 1, "Space between lanes in pixels. The Native icon frame overhangs its icon by about a fifth of the icon on each side: raise this if neighbouring frames touch.")
+	Slider("pastWindow", "Past window (s)", 0.5, 10, 0.5, "Seconds shown on the past side of the now line.")
+	Slider("futureWindow", "Future window (s)", 2, 15, 0.5, "Seconds shown on the future side of the now line. Predictions further away wait at the far edge.")
+	Slider("width", "Length", 200, 1200, 10, "The bar's length along the time axis in pixels; the time scale follows from it.")
+	Slider("laneHeight", "Bar height", 16, 48, 1, "The bar's height in pixels; its icons and casts fill it inside its border.")
+	Slider("laneSpacing", "Engine lane spacing", 0, 16, 1, "Space in pixels above each engine-drawn lane's row under the bar.")
 	Slider("scale", "Scale", 0.5, 2.0, 0.05, "Overall scale. Place the frame in Edit Mode.")
 	Slider("opacity", "Opacity", 0.1, 1.0, 0.05, "The whole timeline's opacity.")
-	Slider("backgroundAlpha", "Lane background (Detailed)", 0, 0.5, 0.05, "A faint band behind each lane of the Detailed layout (0 = none).")
-	Slider("singleBackgroundAlpha", "Backdrop (Single lane)", 0, 0.8, 0.05, "A dark panel behind the Single lane layout, for contrast over a bright scene (0 = none).")
-	Slider("singleShadowAlpha", "Line shadow (Single lane)", 0, 1, 0.05, "A soft shadow under the Single lane's track, for contrast without a panel (0 = none).")
 
 	-- Lanes
 	Checkbox("showMainhand", "Main-hand lane", "The main-hand swing lane (needs a main-hand weapon).")
@@ -151,9 +120,16 @@ function Options:Open()
 	if not category then
 		return
 	end
-	-- OpenToCategory's argument has shifted between client builds: try the
-	-- category, then its numeric id (4everSwingTimer's fallback).
-	if not pcall(Settings.OpenToCategory, category) then
-		pcall(Settings.OpenToCategory, category.GetID and category:GetID() or nil)
+	-- OpenToCategory takes the category's numeric id on this client (it hands
+	-- it to C_SettingsUtil.OpenSettingsPanel). Passing the category object
+	-- first failed there after opening the panel on Blizzard's own pages
+	-- under this addon's taint, so their Social page called a protected
+	-- function (IsUserOAuthed: ADDON_ACTION_FORBIDDEN). The id goes first;
+	-- the object only on a build without one.
+	local id = category.GetID and category:GetID() or category.ID
+	if id then
+		pcall(Settings.OpenToCategory, id)
+	else
+		pcall(Settings.OpenToCategory, category)
 	end
 end

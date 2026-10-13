@@ -19,7 +19,7 @@ local POP_ATLAS = "cast_standard_pipglow" -- shared with 4everSwingTimer
 local POP_TIME = 0.3
 local RING_TIME = 0.8
 local RING_COLOR = { 1.0, 0.93, 0.75 } -- also the highlight's
--- The highlight (Single lane's urgency cue): the glow rises and falls once
+-- The highlight (the urgency cue): the glow rises and falls once
 -- around a mark - Blizzard's HighlightGlow timing (0 to 0.7 and back over
 -- 0.4 s), a little stronger for the corner of the eye.
 local HIGHLIGHT_TIME, HIGHLIGHT_PEAK = 0.4, 0.9
@@ -83,7 +83,7 @@ function Effects:Pop(lane, t, color)
 	end
 end
 
--- Single lane: a mark crossed into its last 1.5 s - a glow `size` across,
+-- A mark crossed into its last 1.5 s - a glow `size` across,
 -- centred on the mark's widget, so it follows the mark.
 function Effects:Highlight(widget, size)
 	if layer then
@@ -94,10 +94,10 @@ function Effects:Highlight(widget, size)
 	end
 end
 
--- Single lane: a cooldown came back - a ring on its ready-row slot, or on the
--- now line for a long cooldown (SingleLane.RingPosition).
+-- A cooldown came back: a ring on its ready-row slot, or on the now line
+-- for a long cooldown (SingleLane.RingPosition).
 function Effects:Ring(lane)
-	if layer and Layout.single then
+	if layer then
 		Flash({ kind = "ring", lane = lane, duration = RING_TIME }, RING_COLOR)
 	end
 end
@@ -169,8 +169,8 @@ function Effects:Place(now)
 				texture:SetSize(size, size)
 				texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(along, ringAcross))
 			else
-				-- Single lane: on the hand's side of the track, where its marks are.
-				local across = Layout.single and SingleLane.Across(effect.lane) or 0
+				-- On the hand's edge of the bar, where its marks are.
+				local across = SingleLane.Across(effect.lane)
 				if effect.kind == "pop" then
 					local size = Layout.iconSize * (1 + POP_GROWTH * progress)
 					texture:SetSize(Layout:Extents(size * 1.6, size))

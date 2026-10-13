@@ -40,9 +40,20 @@ local RESET_DEDUPE = 0.1
 local SWEEP_INTERVAL = Classify.STALE_LANDING_GRACE / 2
 local ATTACK_ICON = 135274 -- fallback when a slot reports no texture
 local ATTACK_SPELL = 6603 -- the auto-attack toggle
+-- Auto Shot is a cast (ADR-0006): a windup of WINDUP_BASE scaled by ranged
+-- haste - the swing library's own value, 0.52 s x ranged speed / the
+-- weapon's base speed - that needs the hunter standing still, then the
+-- reload. The base speed is the ranged weapon's tooltip line (plain, probe
+-- H3), read as the library reads it.
+local AUTO_SHOT_SPELL = 75
+local WINDUP_BASE = 0.52
+local BASE_SPEED_RETRY = 2 -- seconds before re-reading a tooltip that had no speed line
+local GetTooltipItem = C_TooltipInfo and C_TooltipInfo.GetInventoryItem
+local SPEED_PATTERN = (SPEED or "Speed") .. " (%d+[%.,]%d+)"
 
 local Hands = {}
 Addon.Hands = Hands
+Hands.TEST_BASE_SPEED = 3.0 -- the test lanes' ranged weapon
 
 local ON_NEXT_SWING = {}
 for _, id in ipairs(QUEUED_SPELLS) do
@@ -86,6 +97,76 @@ local function HasWeapon(hand)
 	return classID == nil or classID == WEAPON_CLASS_ID
 end
 
+-- ---------------------------------------------------------------------------
+-- Auto Shot as a cast
+-- ---------------------------------------------------------------------------
+
+-- The ranged weapon's base speed, by item ID: read once per weapon (a fixed
+-- item stat); a tooltip without the line (item data not loaded yet) is read
+-- again later.
+local baseSpeeds, baseRetryAt = {}, {}
+
+local function BaseSpeed()
+	if Hands.testBaseSpeed then
+		return Hands.testBaseSpeed
+	end
+	local itemID = GetInventoryItemID("player", SLOT.ranged)
+	if not itemID or not GetTooltipItem then
+		return nil
+	end
+	local speed = baseSpeeds[itemID]
+	if speed or GetTime() < (baseRetryAt[itemID] or 0) then
+		return speed
+	end
+	local data = GetTooltipItem("player", SLOT.ranged)
+	for _, line in ipairs(data and data.lines or {}) do
+		local text = line.rightText
+		local match = type(text) == "string" and not IsSecret(text) and text:match(SPEED_PATTERN)
+		if match then
+			speed = tonumber((match:gsub(",", ".")))
+			break
+		end
+	end
+	if speed and speed > 0 then
+		baseSpeeds[itemID] = speed
+		return speed
+	end
+	baseRetryAt[itemID] = GetTime() + BASE_SPEED_RETRY
+	return nil
+end
+
+-- The Auto Shot windup for a ranged speed, or nil without the weapon's base
+-- speed (the ranged lane then keeps its hollow diamond). Test lanes pass
+-- their own base speed.
+function Hands.Windup(speed, base)
+	base = speed and (base or BaseSpeed())
+	return base and WINDUP_BASE * speed / base or nil
+end
+
+local autoShotIcon -- read once: a spell's texture never changes
+function Hands.AutoShotIcon()
+	autoShotIcon = autoShotIcon or (GetSpellTexture and GetSpellTexture(AUTO_SHOT_SPELL))
+	return autoShotIcon or ATTACK_ICON
+end
+
+-- The next shot as a cast: its windup bar ending at the Auto Shot icon
+-- (full color: the library's expiry is fact-grade; amber-bordered while
+-- moving holds it back), then the cadence chain (Layout.AppendChain),
+-- dimmed and desaturated, each shot with its dim windup bar.
+function Hands.AppendShots(out, expiration, speed, windup, now, held, shake)
+	local icon = Hands.AutoShotIcon()
+	out[#out + 1] = { shape = "bar", tStart = expiration - windup, tEnd = expiration, autoShot = true }
+	out[#out + 1] = { t = expiration, icon = icon, predicted = true, autoShot = true, border = held and "amber" or nil, shake = shake }
+	local first = #out + 1
+	Layout.AppendChain(out, expiration, speed, icon, now)
+	for i = first, #out do
+		local shot = out[i]
+		shot.autoShot = true
+		local at = expiration + shot.after
+		out[#out + 1] = { shape = "bar", tStart = at - windup, tEnd = at, autoShot = true, chain = true }
+	end
+end
+
 -- Entries made while test effects drive the hands are tagged for removal.
 local function Ingest(entry)
 	entry.test = Hands.testing
@@ -99,6 +180,7 @@ end
 local function Collect(lane, now, out)
 	Layout.CollectHappened(lane, now, out)
 	local state, icon = lane.state, lane.icon
+	lane.castShots = nil
 	if not state.active then
 		out[#out + 1] = { atNow = true, icon = icon, dim = true } -- the parked mark
 		return
@@ -107,13 +189,15 @@ local function Collect(lane, now, out)
 	if state.paused then
 		-- A paused hand freezes: its marks keep their offset from the now
 		-- line, dimmed, until the swing resumes.
-		local remaining = expiration - state.pausedAt
-		local horizon = Layout.future + speed
-		local n, depth = 0, Layout.chainDepth
-		while n <= depth and remaining + n * speed <= horizon do
-			out[#out + 1] = { atNow = true, after = remaining + n * speed, icon = icon, dim = true, desaturated = n > 0, chain = n > 0, paused = true }
-			n = n + 1
-		end
+		Layout.AppendPaused(out, expiration - state.pausedAt, speed, icon)
+		return
+	end
+	-- Ranged: Auto Shot as a cast (the hollow diamond without the weapon's
+	-- base speed).
+	local windup = lane.hand == "ranged" and Hands.Windup(speed)
+	if windup then
+		lane.castShots = true
+		Hands.AppendShots(out, expiration, speed, windup, now, state.heldSince, lane.shakeStart)
 		return
 	end
 	local queued = lane.hand == "mainhand" and state.queuedIcon
@@ -226,6 +310,12 @@ function Hands:OnStart(hand, speed, expiration, isUpdate)
 			local landing = expiration - speed
 			local icon, onSwing = LandingIcon(lane, now)
 			local entry = { kind = "swing", lane = lane.key, time = landing, icon = icon, onSwing = onSwing }
+			-- A shot's entry keeps the weapon's icon; the bar draws its windup
+			-- and the Auto Shot icon in its place.
+			local windup = hand == "ranged" and Hands.Windup(speed)
+			if windup then
+				entry.castStart, entry.autoShot = landing - windup, true
+			end
 			Ingest(entry)
 			state.lastLanding, state.lastLandingAt = entry, now
 			if reason == "early" then
@@ -350,6 +440,8 @@ end
 -- tagged for removal.
 function Hands:SetTesting(testing)
 	self.testing = testing or nil
+	-- The replayed ranged hand has no weapon to read a base speed from.
+	self.testBaseSpeed = testing and Hands.TEST_BASE_SPEED or nil
 	if not testing then
 		for _, hand in ipairs(HANDS) do
 			wipe(lanes[hand].state)

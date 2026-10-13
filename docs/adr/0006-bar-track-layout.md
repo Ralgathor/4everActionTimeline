@@ -1,10 +1,11 @@
 # Bar track layout, and Auto Shot as a cast
 
 Status: accepted (2026-10-12).
+Superseded in part by ADR-0007 (2026-10-13): Bar track is the only layout, no longer beside Single lane and Detailed.
 
 A third layout, **Bar track**, condenses Single lane into one framed bar
-the height of a lane, read like a cast bar: the ready spells in a cap at
-the bar's start, casts filling the bar's height, every icon riding inside
+the height of a lane, read like a cast bar: the ready spells in a row under
+it (as the cast bar's name box), casts filling the bar's height, every icon riding inside
 the frame, the swing diamonds on its edges. It sits beside Single lane and
 Detailed in the Layout dropdown and draws from the same lane descriptors;
 only the placement differs, as ADR-0005 set out. The look is in
@@ -42,8 +43,10 @@ Explored in the layout study mock-up (2026-10-12):
 - The renderer gains a third placement path. Bar track has no step room
   inside its frame, so overlapping icons need a new rule, the **card
   stack** (`VISUAL.md`); a linked set draws as one icon with a link mark.
-- The ready cap holds four slots: each slot comes out of the timeline's
-  length.
+- The ready spells sit under the bar, in the box behind it that Blizzard's
+  cast bar shows its spell's name in. (First built as a four-slot cap at
+  the bar's start; moved under it in game review, 2026-10-13, giving the
+  bar its whole length back and every spell a slot.)
 - Auto Shot as a cast needs the windup value. The swing library computes
   it (0.52 s x ranged speed / base speed) but does not expose it; the
   weapon's base speed reads plain from its tooltip (probe H3), so the

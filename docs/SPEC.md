@@ -116,7 +116,7 @@ numbers.
 26. As a player, I want a GCD override choice (by power type, 1.5 s, 1.0 s,
     custom) with a custom slider, so that the GCD lane matches whatever the
     beta's ruleset actually does.
-27. As a player, I want global settings (windows, lane height, spacing,
+27. As a player, I want global settings (windows, bar height, spacing,
     scale) in the game's Settings panel, so that they sit where every other
     addon's settings live.
 28. As a player, I want to place the frame in Blizzard's Edit Mode, so that
@@ -214,24 +214,25 @@ numbers.
   lane per tracked spell. Fixed order: hands/ranged, then GCD, then the cast
   lane, then spell lanes in lane-set order, then sink lanes grouped at the
   bottom (in the same lane-set order).
-- **Layouts** (ADR-0005): that lane order is the **Detailed** layout.
-  **Single lane** (the default) maps the same lanes onto one track, look
+- **Layout** (ADR-0005, ADR-0006, ADR-0007): one, **Bar track** - the
+  lanes but the sink lanes share one framed bar, read like a cast bar, look
   in `VISUAL.md` (Layouts):
-  - hands: main hand and ranged on the lane-start side of the track, off
-    hand on the other; the next landing plus a 1-deep cadence chain;
-  - GCD: a band behind the track;
-  - cast lane: a bar on the track (instants: an icon at the moment of use);
-  - spell lanes: predicted returns on the track; ready spells fill fixed
-    slots of the **ready row** in lane-set order; a **long cooldown** gets
-    no slot (a ring on the now line marks its return);
-  - sink lanes: one thin row each after the ready row.
-  **Bar track** (ADR-0006) maps them into one framed bar: hands as
-  diamonds on its edges, GCD as a tint or strip, casts filling its height,
-  returning cooldowns as icons inside it (overlaps form a card stack),
-  ready spells in a four-slot cap at its start, sink lanes as thin rows
-  under it. In both Single lane and Bar track, ranged becomes the Auto
-  Shot cast (windup and icon), its windup computed from the weapon's base
-  speed.
+  - hands: diamonds on the bar's edges - main hand and ranged on the
+    lane-start edge, off hand on the other; the next landing plus a 1-deep
+    cadence chain; ranged is the Auto Shot cast (windup and icon), its
+    windup computed from the weapon's base speed (the hollow diamond
+    without it);
+  - GCD: a tint of the bar's body, or a strip along its far edge;
+  - cast lane: a bar filling the bar's height (instants: an icon at the
+    moment of use);
+  - spell lanes: predicted returns as icons in the bar (overlaps form a
+    card stack); ready spells fill fixed slots of the **ready row** under
+    the bar (in the box behind it, as the cast bar's name box) in lane-set
+    order; a **long cooldown** gets no slot (a ring on the now line marks
+    its return);
+  - sink lanes: one thin row each under the ready row.
+  Detailed (a lane per kind) and Single lane (one thin track) were built
+  first and removed (ADR-0007).
   A spell is a long cooldown when its cooldown is 30 s or more, unless
   the class data or the lane window says otherwise; a spell whose cooldown
   is not known yet counts as a rotation ability until it is.
@@ -386,7 +387,7 @@ numbers.
   marks add a chevron — `VISUAL.md`); windows 5 s / 5 s by default,
   configurable; linear scale only in v1.
 - **Performance budget**: per frame, only readable marks' time-axis
-  positions, transient effects (pops, streaks, trails, shake) and sink
+  positions, transient effects (pops, streaks, flashes, shake) and sink
   feeds update; layout, tints and the set of marks recompute on events
   only. Sink lanes are capped at **6** (the per-frame
   `GetSpellCooldownDuration` read is the one cost that cannot be
@@ -413,7 +414,7 @@ numbers.
   OnUpdate).
 - **Hand lanes** (main-hand, off-hand, ranged): marks only — happened marks
   at past landings, a predicted mark at the next landing, a **parked mark**
-  (dimmed weapon icon) at the now line when parked; no period bar.
+  (a dim, desaturated diamond) at the now line when parked; no period bar.
   **Hand-lane effects** (effects round, 2026-10-06):
   - Corrections **jump** the predicted mark to its new instant — never a
     glide, which would show wrong instants — with a reposition pop (teal
@@ -563,9 +564,9 @@ numbers.
   not tracked in v1 — spell cooldowns only.
 - **Settings surface split**: the client's Settings vertical layout supports
   checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (layout, windows and width per layout, ready row side, Single lane backdrop and line shadow, urgency cue, Bar track GCD style and seconds scale, scale, opacity, lane height, spacing, GCD override, lane-kind
-  toggles, visibility, skin, orientation, lane background alpha, sink
-  countdown —
+  (windows and length, ready row side, GCD style and seconds scale, scale,
+  opacity, bar height, engine lane spacing, GCD override, lane-kind
+  toggles, visibility, skin, orientation, sink countdown —
   see `VISUAL.md`)
   live in the 12.x Settings category; the lane list (per-spell enable, sink
   opt-in, manual override, long cooldown, drag-reorder) lives in the addon's own settings
@@ -659,20 +660,19 @@ numbers.
   elapsed/unelapsed split) and the sink icon verified by eye before the
   encoding ships — in both skins and every orientation, together with the
   `VISUAL.md` items (state tints, stopped-cast flash and shake, chevron,
-  motion trail, paused/queued overlays, sink countdown). The by-eye check covers the probed classes (Warrior,
+  the card stack, the paused glyph and queued icon, sink countdown). The by-eye check covers the probed classes (Warrior,
   Rogue, Paladin); the other classes' curated data ships unverified in
   game and is release-noted as such.
 - The encoding check also measures renderer frame time against the
   performance budget and views the effect previews once through a
   color-blindness simulator.
-- The encoding check runs for both layouts. Test mode and `test effects`
-  drive whichever layout is active; test mode adds a long cooldown
-  returning (the now-line ring). Single lane adds a **peripheral pass**:
-  watching test mode with the eyes about 20° off the timeline (on the
-  screen centre), a swing landing, a cooldown returning, a cast in flight
-  and a running GCD must each be told apart. The color-blindness pass
-  covers Single lane's held outline and amber delay line. Both layouts
-  meet the same frame-time budget.
+- Test mode and `test effects` drive the bar; test mode adds a long
+  cooldown returning (the now-line ring). The encoding check adds a
+  **peripheral pass**: watching test mode with the eyes about 20° off the
+  timeline (on the screen centre), a swing landing, a cooldown returning,
+  a cast in flight and a running GCD must each be told apart. The
+  color-blindness pass covers the held amber border and the amber delay
+  line.
 - Syntax checks run before every in-game pass (luajit/luac), per the repo
   conventions.
 

@@ -102,12 +102,9 @@ end
 -- After the renderer laid the lanes out: each bar spans its lane's future
 -- window, from the now line to the far edge (linear, as TimeToOffset).
 function Sinks:Layout()
-	local size, countdown, orient = Layout.iconSize, Addon:GetSetting("sinkCountdown"), Layout.orient
-	-- Single lane: a thin row each.
-	local rowHeight = Layout.laneHeight
-	if Layout.single then
-		rowHeight, size = SingleLane.SlotSize(), SingleLane.SinkIcon()
-	end
+	local countdown, orient = Addon:GetSetting("sinkCountdown"), Layout.orient
+	-- A thin row each under the bar.
+	local rowHeight, size = SingleLane.SinkRow(), SingleLane.SinkIcon()
 	for _, lane in ipairs(shown) do
 		local bar = lane.bar
 		bar:ClearAllPoints()

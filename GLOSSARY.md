@@ -11,16 +11,16 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
 
 ## Timeline
 
-- **lane** — one horizontal track owned by one subject: a hand, the GCD, the
-  player's casts, a tracked spell, or a tracked spell's engine-drawn
-  overlay. In the Single lane **layout** every subject shares one track
-  (except engine-drawn lanes, which keep thin rows of their own), but each
-  stays a lane in the code and the docs. _Avoid_: row (the **ready row** is
-  not a lane).
+- **lane** — the marks of one subject: a hand, the GCD, the player's
+  casts, a tracked spell, or a tracked spell's engine-drawn overlay. Every
+  subject shares one track, the **bar** (except engine-drawn lanes, which
+  keep thin rows of their own under it), but each stays a lane in the code
+  and the docs. _Avoid_: row (the **ready row** is not a lane).
 - **mark** — a positioned glyph on a lane. A **happened mark** records an
   event that occurred; a **predicted mark** places an event expected to
-  occur. A hand lane's marks render the equipped weapon's
-  icon; spell lanes' marks render the spell's icon. The marks are the
+  occur. A hand lane's marks are swing diamonds on the bar's edges (a
+  queued ability shows its icon; ranged, the Auto Shot cast); spell lanes'
+  marks render the spell's icon. The marks are the
   lane's identity — no static lane-start glyphs. Saturation follows
   **source-certainty saturation**: full color when the mark's source is
   engine-verified fact-grade (a happened event, the library's next-landing
@@ -30,28 +30,26 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
 - **ready mark** — the mark a tracked spell shows while ready: off cooldown
   and usable (resource and reactive conditions met) where the game reports
   usability readably in combat, off cooldown alone where it does not. The
-  spell's icon, plain full color with no outline, parked at the now
-  line (Single lane: filling the spell's ready-row slot; a long cooldown
-  shows none) — vivid because it is ready now, matching the game's own
+  spell's icon, plain full color with no outline, filling the spell's
+  ready-row slot (a long cooldown shows none) — vivid because it is ready now, matching the game's own
   gray-while-on-cooldown icon language. Idle lanes do not collapse; they
   show the ready mark. The engine-drawn sink arrives here naturally when
   the secret remaining time hits zero, which is why the sink needs no
   hide-on-complete.
 - **unusable mark** — the mark a tracked spell shows while off cooldown but
   not usable (resource short, a reactive condition unmet, or the wrong
-  druid form or warrior stance): the spell's icon at the now line (Single
-  lane: in its ready-row slot), tinted
+  druid form or warrior stance): the spell's icon in its ready-row slot,
+  tinted
   the way the game tints an unusable action button (blue when
   resource-short, grey otherwise). Exists only where the condition is
   readable in combat.
 - **unknown-cooldown mark** — the mark a tracked spell shows while it is
   known to be cooling but the timeline does not know until when (never
-  calibrated, or reloaded mid-cooldown in combat): the spell's icon at the
-  now line (Single lane: in its ready-row slot), desaturated, no outline. Held until a plain read settles it or
+  calibrated, or reloaded mid-cooldown in combat): the spell's icon in its
+  ready-row slot, desaturated, no outline. Held until a plain read settles it or
   the spell's next completed cast proves it was ready.
-- **parked mark** — a hand lane's mark while its hand is parked: the
-  equipped weapon's icon at the now line, dimmed (Single lane: a dim,
-  desaturated diamond). _Avoid_: ready mark (that
+- **parked mark** — a hand lane's mark while its hand is parked: a dim,
+  desaturated diamond on the now line. _Avoid_: ready mark (that
   is the spell lanes' term).
 - **delayed-start cooldown** — a cooldown that begins when the spell's
   effect breaks or is consumed, not when it is cast (Stealth, Nature's
@@ -79,7 +77,7 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   calibrates. _Avoid_: watch list (that is SwingTestLog's aura list).
 - **cadence chain** — a swing lane's predicted marks beyond the next landing:
   equal-interval desaturated marks derived from the latest anchor's expiry
-  and speed, filling the future window (Single lane: one mark deep),
+  and speed, one mark deep,
   re-derived at every anchor. Plain
   payload arithmetic only — the library stays the sole source of swing
   state; marks beyond the first are visibly forecast and are corrected at
@@ -127,30 +125,29 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   of time are facts); the unelapsed span renders desaturated (its end is
   inferred). Nothing renders when idle, and windows never chain into the
   future.
-- **motion trail** — the streak a predicted mark draws behind it as it
-  approaches the now line: an approach cue, not a record of where the
-  mark has been.
 - **now line** — the dividing instant of the timeline; one side of it is
   past, the other future. Which side is which, and whether the line runs
   vertically or horizontally, follows the **orientation**.
 - **orientation** — the timeline's axis and direction: horizontal (past
   left, future right), horizontal flipped, or vertical (and its flip).
   _Avoid_: direction (ambiguous with a mark's travel).
-- **skin** — the timeline's art family: **Native** (Blizzard's own
-  timeline and Cooldown Manager art) or **Flat** (plain lines and
-  square icons). The same term and choice as 4everSwingTimer's skins.
+- **skin** — the timeline's art family: **Native** (Blizzard's cast bar
+  and swing timer art) or **Flat** (a plain dark bar, thin borders). The same term and choice as 4everSwingTimer's skins.
 - **past window / future window** — the visible time span either side of the
-  now line, one pair per **layout** (defaults: Detailed 5 s / 5 s, Single
-  lane 1.5 s / 10 s; user-configurable).
+  now line (defaults 1.5 s / 10 s; user-configurable).
 - **edge clamp** — a predicted mark whose event time lies beyond the future
   window renders pinned at the far edge instead of off-window: the sink's
   engine-drawn icon and readable predicted marks alike, so every distant
   return reads as "far away". A pinned readable mark also shows a
   chevron; a pinned engine-drawn icon cannot.
-- **layout** — how the lanes map onto the frame: **Single lane** (default:
-  every lane kind on one track) or **Detailed** (one lane per kind).
-  ADR-0005.
-- **ready row** — Single lane's row of fixed **slots** under the track, one
+- **bar** — the one track every lane but the engine-drawn lanes shares: a
+  framed bar read like a cast bar (the **Bar track** layout, ADR-0006, the
+  only one since ADR-0007). _Avoid_: layout (there is one), Single lane and
+  Detailed (removed layouts).
+- **card stack** — how the bar shows icons closer than an icon's width:
+  the front one (a fact first, else the soonest) at its place, the others
+  peeking out behind it, three at most, then "+n".
+- **ready row** — the row of fixed **slots** under the bar, one
   per rotation ability, filled while the spell is ready (a cooling spell's
   slot is an empty outline).
 - **long cooldown** — a tracked spell kept out of the ready row: a cooldown

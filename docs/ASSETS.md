@@ -16,77 +16,81 @@ Verification legend:
   library).
 - **probed** — chosen during the probe session.
 
-Probe 14 (2026-10-06, build 70235): every atlas in this file exists in game
-(`C_Texture.GetAtlasInfo`, `PROBE_SESSION.md`). The runtime atlas guard
-stays, since a later build can drop one.
+Probe 14 (2026-10-06, build 70235): every atlas of the M7 set exists in
+game (`C_Texture.GetAtlasInfo`, `PROBE_SESSION.md`); probe H1 (2026-10-12)
+the cast bar's. The runtime atlas guard stays, since a later build can
+drop one.
 
-## Native skin — track and now line
+## Native skin — the bar (ADR-0006)
 
-| Asset | Kind | Status | Use |
-|---|---|---|---|
-| `combattimeline-line-left` / `combattimeline-line-right` | atlas | source | Per-lane track line (Encounter Timeline track view). |
-| `combattimeline-line-break-mask` | atlas | source, seen in game | Line-break masks on the track line, 1, 3 and 5 s either side of the now line (three per line segment, the texture limit). |
-| `combattimeline-cooldown-divider` | atlas | source | Now line, stretched across every lane. |
-| `combattimeline-pip` | atlas | source | Diamond at the now line's lane-start end. |
-| `combattimeline-line-icontrail` | atlas | source | Motion trail on the next predicted mark (`ADD`). |
-
-## Native skin — mark frame
+Native draws the whole bar in one family, Blizzard's cast bar
+(`CastingBarFrameTemplates.xml`; chosen 2026-10-12 over the Cooldown
+Manager bars of the timeline's Bars view):
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `UI-HUD-CoolDownManager-Mask` | atlas (mask) | source | Icon mask (Cooldown Manager / Encounter Timeline icons). |
-| `UI-HUD-CoolDownManager-IconOverlay` | atlas | source | Icon frame overlay; overhangs the icon by a few pixels. |
+| `ui-castingbar-background` | atlas | probed (H1) | The bar's body. |
+| `ui-swingtimerbar-frame` | atlas | shared | The border, Blizzard's swing timer's, stretched over the bar whole (as 4everSwingTimer stretches it over its configurable bars): drawn for a bar of any size. It cannot be cut, so the now line crosses it. |
+| `ui-castingbar-filling-standard` / `-filling-channel` | atlas | probed (H1) | A cast's and a channel's fill, in their own colors. Filling the bar's height, at its own proportions from the cast's start - a short cast shows its first part, cropped; a cast longer than the art stretches it - and revealed up to now as Blizzard's cast bar reveals its fill (drawn from the atlas's file, cropped by coordinates); the part still to run shows the rest of the art, faint. (Squeezed into the elapsed part it rescaled every frame and read oddly; tiling and its own height were tried, 2026-10-12.) |
+| `ui-castingbar-uninterruptable` | atlas | source, not yet seen in game | The Auto Shot windup's fill: grey art, tinted teal. Missing, the windup is plain teal. |
+| `ui-castingbar-pip` | atlas | probed (H1) | The now line: the cast bar's spark, `ADD`. |
+| `cast_standard_pipglow` | atlas | shared | While a cast or the Auto Shot windup runs through the now line: the glow Blizzard's cast bar trails behind its spark (37 x 12 on an 11 px bar, its end 2 px past the spark, `ADD`), scaled to the bar. |
+| `cast_channel_pipshadow` | atlas | source, not yet seen in game | A channel's shadow at the spark instead (11 x 11, `BLEND`); missing, a channel shows none. |
+| `ui-castingbar-textbox` | atlas | source, not yet seen in game | The box behind the bar reaching down over the ready row, as Blizzard's cast bar shows the spell's name. Missing, a plain dark box. |
+| `UI-HUD-CoolDownManager-Bar` | atlas | source, seen in game (probe 14) | The GCD tint, tinted pale blue. |
 
-## Native skin — bars and state overlays
+## Native skin — fallbacks and glyphs
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `UI-HUD-CoolDownManager-Bar` / `-Bar-BG` | atlas | source | GCD window bar fill and backing. |
-| `combattimeline-fx-pause` / `-pause-icon` | atlas | source | Overlay on a paused hand's marks; in Single lane the icon alone, beside a paused hand's next diamond. |
-| `combattimeline-fx-queued` | atlas | source | Overlay on the main-hand mark showing a queued ability. |
-| `uitools-icon-chevron-right` | atlas | probed | Edge-clamp chevron (20×20, white, tinted to the track color; turned through tex coords per orientation). |
+| `combattimeline-cooldown-divider` | atlas | source | The now line where the cast bar's spark is missing. |
+| `combattimeline-pip` | atlas | source | The diamond at that now line's lane-start end. |
+| `combattimeline-fx-pause-icon` | atlas | source | Beside a paused hand's next diamond. |
+| `uitools-icon-chevron-right` | atlas | probed | Edge-clamp chevron (20×20, white; turned through tex coords per orientation). |
 
 ## Both skins — feedback
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); in Single lane also the return ring on a ready-row slot or the now line, pale (`ADD`). |
+| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); the return ring on a ready-row slot or the now line, and the highlight flash, pale (`ADD`). |
 
 ## Flat skin
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `Interface\Buttons\WHITE8X8` | path | shared | Track lines, now line, borders, Flat trail streak. |
+| `Interface\Buttons\WHITE8X8` | path | shared | The bar's body, border and fills, the ready row's box, the now line and its steps, icon borders, the GCD (strip in both skins), the scale's ticks, the link badge, the correction streak. |
 
-## Bar track (ADR-0006)
+Not atlases:
 
-| Asset | Kind | Status | Use |
-|---|---|---|---|
-| `UI-HUD-CoolDownManager-Bar-BG` | atlas | source | Bar track's body (Native). |
-| `UI-HUD-CoolDownManager-Bar` | atlas | source | Casts, channels and the Auto Shot windup filling the bar (Native), tinted. |
-| `Interface\Buttons\WHITE8X8` | path | shared | Bar track's border in both skins until a border atlas is chosen; Flat body and fills. |
-
-Probed (`PROBE_SESSION.md`, Part H) and still to choose:
-
-- `ui-castingbar-frame` / `-background` / `-filling-standard` /
-  `-filling-channel` / `-pip` - the mainline cast bar's art, all five
-  present in game (probe H1, 2026-10-12): a border and body for the bar,
-  fills for its casts and channels. Stretching the frame to a long 26 px
-  bar is still to be looked at. A border atlas cannot be cut at the now line and the seconds
-  scale; with it, the cuts become marks drawn over the border.
 - No link or chain atlas exists in the source: the linked-set mark is a
   small corner badge in `WHITE8X8`.
 - The Auto Shot icon: the spell texture of spell 75
-  (`C_Spell.GetSpellTexture`, file 132369, probe H3), not an atlas.
+  (`C_Spell.GetSpellTexture`, file 132369, probe H3).
+
+## Removed with ADR-0007
+
+Referenced by Detailed and Single lane, which no longer exist:
+`combattimeline-line-left` / `-line-right` (the per-lane track line),
+`combattimeline-line-break-mask` (its line breaks),
+`combattimeline-line-icontrail` (the motion trail),
+`UI-HUD-CoolDownManager-Mask` and `-IconOverlay` (the framed icon),
+`UI-HUD-CoolDownManager-Bar-BG` (the window bars' backing),
+`combattimeline-fx-pause` and `combattimeline-fx-queued` (the icon
+overlays).
 
 ## Candidates noted, not chosen
 
+- `ui-castingbar-frame` (213 x 15, no slice data) as the border: drawn
+  for an 11 px cast bar, it would not fit a bar of configurable width and
+  height - stretched whole its rim thickened, nine-sliced or cut into pieces
+  its ends missed the rails (2026-10-12/13).
+- The Cooldown Manager bars (`UI-HUD-CoolDownManager-Bar-BG` placed as
+  the timeline's Bars view places it, `-Bar` fills, the `-Bar-Pip`
+  spark): one family with the icons, tried and set aside for the cast
+  bar's look (2026-10-12).
 - `uitools-icon-chevron-left` — the right chevron turned through tex
   coords covers flipped orientations.
-
 - `combattimeline-fx-highlight` / `-highlight-fx` / `-highlight-mask` —
   Blizzard's imminent-event highlight; rejected for the pop (pre-colored
-  art tints muddy).
-- `combattimeline-fx-queued-icon` — the queued overlay's icon variant;
-  unused unless `fx-queued` alone reads weak.
+  art tints muddy; it drew a blank square, build 70235).
 - `UI-CooldownManager-OORshadow` — out-of-range shadow; out of v1.
