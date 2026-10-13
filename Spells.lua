@@ -148,9 +148,13 @@ end
 
 -- The duration predicting this lane: the override, else its calibrated
 -- value. nil when unknown.
+local function DurationOf(base, id, from)
+	local entry = id and Calibration:Entry(id)
+	return Addon:GetLaneValue(base, "override", from) or (entry and entry.duration)
+end
+
 local function Duration(lane)
-	local entry = Calibration:Entry(lane.id)
-	return Addon:GetLaneValue(lane.base, "override") or (entry and entry.duration)
+	return DurationOf(lane.base, lane.id)
 end
 
 -- A long cooldown (no ready-row slot, a ring on the now line when
@@ -160,12 +164,25 @@ end
 local LONG_COOLDOWN = 30
 Spells.LONG_COOLDOWN = LONG_COOLDOWN
 
-function Spells.IsLong(lane)
-	if Addon:GetLaneValue(lane.base, "long") or Addon:ClassInfo().long[lane.base] then
+-- Long whatever the player flags: tagged in the class data, or a known
+-- cooldown (override at layer `from`, else learned for spell `id`) of
+-- 30 s or more.
+function Spells.AutoLongBase(base, id, from)
+	if Addon:ClassInfo().long[base] then
 		return true
 	end
-	local duration = Duration(lane)
+	local duration = DurationOf(base, id, from)
 	return duration ~= nil and duration >= LONG_COOLDOWN
+end
+
+-- A lane's spell by base, resolved id and layer (the lane window asks for
+-- spells that have no lane): long when flagged at `from` or automatically.
+function Spells.IsLongBase(base, id, from)
+	return Addon:GetLaneValue(base, "long", from) or Spells.AutoLongBase(base, id, from)
+end
+
+function Spells.IsLong(lane)
+	return Spells.IsLongBase(lane.base, lane.id)
 end
 
 -- The cooldown starts at `at` (a cast, or a linked spell's cast; a linked

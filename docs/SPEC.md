@@ -562,29 +562,41 @@ numbers.
   rank each session, config shows spell names, marks and the calibration
   cache key on the resolved spell ID. Usable items (trinkets, potions) are
   not tracked in v1 — spell cooldowns only.
-- **Settings surface split**: the client's Settings vertical layout supports
-  checkbox, slider and dropdown only — it cannot hold a spell list. Globals
-  (windows and length, ready row side, GCD style and seconds scale, scale,
-  opacity, bar height, engine lane spacing, GCD override, lane-kind
-  toggles, visibility, skin, orientation, sink countdown —
-  see `VISUAL.md`)
-  live in the 12.x Settings category; the lane list (per-spell enable, sink
-  opt-in, manual override, long cooldown, drag-reorder) lives in the addon's own settings
-  window, opened from the slash command. Nothing dynamic registers in the
-  Settings category.
+- **Settings surface split** (ADR-0008): three places, the way Forever's own
+  Cooldown Manager and Swing Timer split theirs. **Edit Mode** holds the
+  frame: its position and the settings of its shape — scale, opacity,
+  length, bar height, past and future window, engine lane gap, visibility, orientation,
+  ready row side, skin, GCD style, seconds scale — in a panel
+  that opens when the timeline is clicked there. The **spell window**
+  (`/actiontimeline config`) holds what is shown: every class spell as an
+  icon in four sections (Timeline, Long cooldowns, Engine lanes, Not
+  displayed), dragged within a section to reorder and between sections to
+  change what the spell does (the enabled, sink and long flags, derived
+  from the section), a right-click menu for a manual cooldown, a search
+  box, and Revert to the layer as it was when the window opened. The
+  **Settings category** (`/actiontimeline options`) holds the rest —
+  windows, GCD style, length and countdown, seconds scale, skin, lane-kind
+  toggles, engine lane spacing — under section headers, with buttons to the
+  spell window and the custom
+  GCD value enabled only while GCD length is Custom. Each place links to
+  the others. Nothing dynamic registers in the Settings category.
 - **Frame anchoring**: placed in Blizzard Edit Mode, following ForeverCDM's
   proven pattern on this client (probe 9 passed, build 70235) — which is
   **not** a registered Edit Mode system: the frame listens for
-  `EventRegistry` `EditMode.Enter` / `EditMode.Exit`, becomes draggable
-  (with a labelled handle) only while Edit Mode is open, snaps by hand
-  against `EditModeManagerFrame.registeredSystemFrames` when Edit Mode's
-  snap is on, and stores its own position (UIParent-centred) in the
-  player layer. No custom unlock overlay, no lock checkbox, no taint from
-  writing into Blizzard's layout tables. Edit Mode's own scale does not
-  apply to such a frame, so **scale** is a Settings slider. A **width**
+  `EventRegistry` `EditMode.Enter` / `EditMode.Exit`, shows inside
+  Blizzard's own selection art (blue, yellow when clicked, a label) only
+  while Edit Mode is open, drags,
+  snaps by hand against `EditModeManagerFrame.registeredSystemFrames` when
+  Edit Mode's snap is on, and stores its own position (UIParent-centred) in
+  the player layer, **one per Edit Mode layout** (`positions[layoutType:name]`,
+  with `positions.default` for a layout that has none). A switch of the
+  active layout (`EDIT_MODE_LAYOUTS_UPDATED`) moves it. Clicking it opens
+  its settings panel. No custom unlock overlay, no lock checkbox, no taint
+  from writing into Blizzard's layout tables. Edit Mode's own scale does not
+  apply to such a frame, so **scale** is a slider in the panel. A **length**
   slider sets the frame width, and the time scale follows from it (pixels
   per second = width ÷ (past window + future window)).
-- **Visibility**: a Settings dropdown — **In combat** (default), **Always**,
+- **Visibility**: a dropdown in the Edit Mode panel — **In combat** (default), **Always**,
   **Active** (shown while any mark is inside the visible window) — the bar
   addon's visibility pattern. Test mode forces the frame shown; event
   capture never depends on visibility.
@@ -592,7 +604,7 @@ numbers.
   migrate on load) resolved through three layers — **shipped defaults**
   (the code-side starter set, never written to saved variables), the
   **class layer** (shared lane-set changes) and the **player layer**
-  (overrides, width/height/spacing, and the calibration cache). Each layer
+  (overrides, width/height/spacing, the position per Edit Mode layout, and the calibration cache). Each layer
   stores only what changed at its level; unset keys fall through to the
   layer below, so starter-set improvements reach every install that has
   not changed that spell, and class-set improvements keep reaching alts.

@@ -130,9 +130,11 @@ end
 
 -- The value resolved from layer `from` down: "player" walks player, class,
 -- shipped; "class" walks class, shipped; nil walks shipped only.
+local LAYER_WALK = { "player", "class" }
+
 local function Resolve(self, from, id, key)
 	local walking = false
-	for _, name in ipairs({ "player", "class" }) do
+	for _, name in ipairs(LAYER_WALK) do
 		walking = walking or name == from
 		if walking then
 			local value = SpellValue(Layer(self, name), id, key)
@@ -161,9 +163,45 @@ function Addon:OnLaneSetChanged(fn)
 	laneSetListeners[#laneSetListeners + 1] = fn
 end
 
+local batching, pendingNotify = 0, false
+
 local function Notify()
+	if batching > 0 then
+		pendingNotify = true
+		return
+	end
 	for _, fn in ipairs(laneSetListeners) do
 		fn()
+	end
+end
+
+-- Runs fn; the lane set's listeners hear of every change it made once, after.
+function Addon:BatchLaneSet(fn)
+	batching = batching + 1
+	local ok, err = pcall(fn)
+	batching = batching - 1
+	if batching == 0 and pendingNotify then
+		pendingNotify = false
+		Notify()
+	end
+	if not ok then
+		error(err, 0)
+	end
+end
+
+-- The layer's own stored lanes table ({ spells, order }), or nil.
+function Addon:LayerLanes(layerName)
+	local layer = Layer(self, layerName)
+	return layer and layer.lanes
+end
+
+-- Replaces a layer's stored lanes whole (nil clears them): the lane window's
+-- Revert.
+function Addon:SetLayerLanes(layerName, lanes)
+	local layer = Layer(self, layerName)
+	if layer then
+		layer.lanes = lanes
+		Notify()
 	end
 end
 
@@ -187,10 +225,7 @@ end
 
 -- "Reset to class": deletes this character's lane settings and order.
 function Addon:ResetPlayerLanes()
-	if self.playerLayer then
-		self.playerLayer.lanes = nil
-		Notify()
-	end
+	self:SetLayerLanes("player", nil)
 end
 
 -- Sets a per-spell value at the "class" or "player" layer; a value equal to

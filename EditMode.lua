@@ -2,28 +2,87 @@
 -- Frame anchoring; probe 9). ForeverCDM's proven pattern on this client: the
 -- timeline is not a registered Edit Mode system (no writes into Blizzard's
 -- layout tables). It listens for EventRegistry EditMode.Enter / Exit; while
--- Edit Mode is open the timeline shows, a labelled handle over it takes the
--- mouse and drags it, a drop snaps to nearby Edit Mode frames when Edit
--- Mode's snap is on, and the position is stored UIParent-relative at the
--- player layer. Outside Edit Mode the frame stays click-through. Edit
--- Mode's own scale does not apply: scale is a Settings slider.
+-- Edit Mode is open the timeline shows inside Blizzard's own selection art
+-- (blue while idle, yellow once clicked, a label), drags and snaps to
+-- nearby Edit Mode frames when Edit Mode's snap is on. (No arrow-key nudge:
+-- capturing the keyboard needs SetPropagateKeyboardInput, protected on this
+-- client.) Clicking it opens its settings panel (EditModeDialog.lua). The
+-- position is stored UIParent-relative at the player layer, one per Edit
+-- Mode layout, with the "default" one for a layout that has none. Outside
+-- Edit Mode the frame stays click-through. Edit Mode's own scale does not
+-- apply: scale is a setting in the panel.
 
 local Addon = FourEverActionTimeline
 
 local SNAP_DISTANCE = 10
 local HANDLE_MIN_HEIGHT = 30
 
+-- Blizzard's selection frame (EditModeSystemTemplates.lua), applied with
+-- NineSliceUtil to our own frame - never inherited, whose mouse handler
+-- selects a system in Edit Mode's own manager.
+local KITS = { highlight = "editmode-actionbar-highlight", selected = "editmode-actionbar-selected" }
+local SELECTION = {
+	TopRightCorner = { atlas = "%s-NineSlice-Corner", mirrorLayout = true, x = 8, y = 8 },
+	TopLeftCorner = { atlas = "%s-NineSlice-Corner", mirrorLayout = true, x = -8, y = 8 },
+	BottomLeftCorner = { atlas = "%s-NineSlice-Corner", mirrorLayout = true, x = -8, y = -8 },
+	BottomRightCorner = { atlas = "%s-NineSlice-Corner", mirrorLayout = true, x = 8, y = -8 },
+	TopEdge = { atlas = "_%s-NineSlice-EdgeTop" },
+	BottomEdge = { atlas = "_%s-NineSlice-EdgeBottom" },
+	LeftEdge = { atlas = "!%s-NineSlice-EdgeLeft" },
+	RightEdge = { atlas = "!%s-NineSlice-EdgeRight" },
+	Center = { atlas = "%s-NineSlice-Center", x = -8, y = 8, x1 = 8, y1 = -8 },
+}
+
 local EditMode = {}
 Addon.EditMode = EditMode
 
 local timeline, handle
+local selected = false
+
+-- ---------------------------------------------------------------------------
+-- The position: one per Edit Mode layout
+-- ---------------------------------------------------------------------------
+
+-- The active Edit Mode layout's key, or "default" without one.
+local function LayoutKey()
+	local manager = EditModeManagerFrame
+	local info = manager and manager.GetActiveLayoutInfo and manager:GetActiveLayoutInfo()
+	if not info then
+		return "default"
+	end
+	local name = info.layoutName
+	if name == nil or name == "" then
+		name = manager.layoutInfo and manager.layoutInfo.activeLayout or "?"
+	end
+	return (info.layoutType or 0) .. ":" .. name
+end
+
+local function Positions()
+	local player = Addon.playerLayer
+	player.positions = player.positions or {}
+	return player.positions
+end
+
+-- Positions are kept in UIParent units, so the frame's own scale never moves
+-- them: an anchor offset is in the frame's scale, a stored position is not.
+local function ScaleToParent()
+	return timeline:GetEffectiveScale() / UIParent:GetEffectiveScale()
+end
+
+local function Place(position)
+	local scale = ScaleToParent()
+	timeline:ClearAllPoints()
+	timeline:SetPoint("CENTER", UIParent, "BOTTOMLEFT", position.x / scale, position.y / scale)
+end
+
+-- Below the screen's center, where the frame starts.
+local function DefaultPosition()
+	return { x = (UIParent:GetWidth() or 0) / 2, y = (UIParent:GetHeight() or 0) / 2 - 180 }
+end
 
 local function Restore()
-	local position = Addon.playerLayer.position
-	if position then
-		timeline:ClearAllPoints()
-		timeline:SetPoint("CENTER", UIParent, "BOTTOMLEFT", position.x, position.y)
-	end
+	local positions = Positions()
+	Place(positions[LayoutKey()] or positions.default or DefaultPosition())
 end
 
 local function Plain(value)
@@ -80,21 +139,81 @@ local function Snap()
 	return dx, dy
 end
 
--- On drop: snap, store the center at the player layer, re-anchor to
--- UIParent whatever StartMoving left.
-local function Save()
+-- Stores the center (shifted by dx, dy UIParent units) at the active layout
+-- and re-anchors to UIParent whatever StartMoving left.
+local function Store(dx, dy)
 	local x, y = timeline:GetCenter()
 	if not x then
 		return
 	end
-	local dx, dy = Snap()
-	local scale = UIParent:GetEffectiveScale() / timeline:GetEffectiveScale()
-	Addon.playerLayer.position = { x = x + (dx or 0) * scale, y = y + (dy or 0) * scale }
+	local scale = ScaleToParent()
+	Positions()[LayoutKey()] = { x = x * scale + (dx or 0), y = y * scale + (dy or 0) }
 	Restore()
+end
+
+-- On drop: snap, then store.
+local function Save()
+	Store(Snap())
+end
+
+-- Back to the default spot: forgets this layout's position.
+function EditMode:ResetPosition()
+	Positions()[LayoutKey()] = nil
+	Restore()
+end
+
+-- ---------------------------------------------------------------------------
+-- The selection
+-- ---------------------------------------------------------------------------
+
+-- Blizzard's art when the client has it, else a plain band.
+local function ShowKit(kit)
+	if handle.kit == kit then
+		return
+	end
+	handle.kit = kit
+	local ready = NineSliceUtil and NineSliceUtil.ApplyLayout and Addon.Util.AtlasExists(kit .. "-NineSlice-Corner")
+	if ready then
+		NineSliceUtil.ApplyLayout(handle, SELECTION, kit)
+		handle.band:Hide()
+	else
+		local selectedKit = kit == KITS.selected
+		handle.band:SetColorTexture(selectedKit and 1 or 0.82, selectedKit and 0.82 or 0.38, selectedKit and 0 or 0.12, selectedKit and 0.4 or 0.25)
+		handle.band:Show()
+	end
+end
+
+local function UpdateLabel()
+	handle.label:SetShown(selected or handle.hover)
+end
+
+local function Select(on)
+	if selected == on then
+		return
+	end
+	selected = on
+	ShowKit(on and KITS.selected or KITS.highlight)
+	UpdateLabel()
+	if on then
+		Addon.EditModeDialog:Show(handle)
+	else
+		Addon.EditModeDialog:Hide()
+	end
+end
+
+-- Our panel closes: its close button, or another window of ours opens over
+-- Edit Mode. Nothing of Blizzard's is touched from here (calling its Edit
+-- Mode manager from our handlers taints the raid frames' updates, M10 probes
+-- E3 and E6).
+function EditMode:Deselect()
+	Select(false)
 end
 
 local function SetActive(active)
 	Addon.editMode = active
+	if not active then
+		Select(false)
+	end
 	handle:SetShown(active)
 	Addon.Renderer:MarkLayoutDirty()
 	Addon.Renderer:UpdateVisibility()
@@ -107,13 +226,26 @@ local function BuildHandle()
 	handle:SetFrameStrata("HIGH")
 	handle:EnableMouse(true)
 	handle:RegisterForDrag("LeftButton")
-	local band = handle:CreateTexture(nil, "BACKGROUND")
-	band:SetAllPoints()
-	band:SetColorTexture(0.82, 0.38, 0.12, 0.25)
-	local label = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	label:SetPoint("BOTTOM", handle, "TOP", 0, 2)
-	label:SetText("4everActionTimeline - drag to move")
+	handle.band = handle:CreateTexture(nil, "BACKGROUND")
+	handle.band:SetAllPoints()
+	handle.band:Hide()
+	handle.label = handle:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	handle.label:SetPoint("CENTER")
+	handle.label:SetText("Action Timeline")
+	handle.label:Hide()
+	handle:SetScript("OnMouseDown", function()
+		Select(true)
+	end)
+	handle:SetScript("OnEnter", function(self)
+		self.hover = true
+		UpdateLabel()
+	end)
+	handle:SetScript("OnLeave", function(self)
+		self.hover = false
+		UpdateLabel()
+	end)
 	handle:SetScript("OnDragStart", function()
+		Select(true)
 		timeline:StartMoving()
 	end)
 	handle:SetScript("OnDragStop", function()
@@ -127,6 +259,7 @@ local function BuildHandle()
 	end
 	timeline:HookScript("OnSizeChanged", FitHeight)
 	FitHeight()
+	ShowKit(KITS.highlight)
 	handle:Hide()
 end
 
@@ -135,16 +268,43 @@ function EditMode:Init(frame)
 	timeline:SetMovable(true)
 	timeline:SetClampedToScreen(true)
 	Restore()
+	-- A new scale re-anchors the stored position (the offset is in the frame's
+	-- scale), so scaling never moves the timeline.
+	if hooksecurefunc then
+		local scale
+		hooksecurefunc(timeline, "SetScale", function(_, new)
+			if new ~= scale then
+				scale = new
+				Restore()
+			end
+		end)
+	end
 	BuildHandle()
 	if EventRegistry and EventRegistry.RegisterCallback then
 		EventRegistry:RegisterCallback("EditMode.Enter", function()
+			Restore()
 			SetActive(true)
 		end, EditMode)
 		EventRegistry:RegisterCallback("EditMode.Exit", function()
 			SetActive(false)
 		end, EditMode)
 	end
+	-- A switch of the active Edit Mode layout moves the timeline to that
+	-- layout's own position.
+	if EventRegistry and EventRegistry.RegisterFrameEventAndCallback then
+		EventRegistry:RegisterFrameEventAndCallback("EDIT_MODE_LAYOUTS_UPDATED", Restore, EditMode)
+	end
+	-- Blizzard selecting a system (or clearing its selection) deselects ours.
 	local manager = EditModeManagerFrame
+	if manager and hooksecurefunc then
+		for _, method in ipairs({ "SelectSystem", "ClearSelectedSystem" }) do
+			if manager[method] then
+				hooksecurefunc(manager, method, function()
+					Select(false)
+				end)
+			end
+		end
+	end
 	if manager and manager.IsEditModeActive and manager:IsEditModeActive() then
 		SetActive(true)
 	end

@@ -182,7 +182,7 @@ a section says otherwise:
   leaves the bar while its sink is on, the pinned icon shows no chevron,
   the countdown text stays optional. Its ready-row slot (or, for a long
   cooldown, the now-line ring) still follows the plain off-cooldown read.
-- Settings: one past and future window (default 1.5 s / 10 s) and one
+- Edit Mode panel: one past and future window (default 1.5 s / 10 s) and one
   length. The bar height setting sizes the bar and everything on it scales
   with it - the pixel sizes above are those at the default height. Engine
   lane spacing is the gap above each engine-drawn row.
@@ -505,20 +505,45 @@ is never desaturated.
   opacity (a Settings slider, 0.1 to 1, the whole frame), orientation and
   flips, and countdown; it has no icon size apart from the bar height.
 
-### Settings window
+### Settings window (the spell window)
 
-- Mirrors the Cooldown Manager settings layout: icon rows, drag to
-  reorder. Never built by inheriting `CooldownViewerSettingsItemTemplate`
-  and friends, whose mixins are wired to Blizzard's Cooldown Manager data
-  and settings store.
-- As built (M6): plain frames and the basic templates only
-  (`BasicFrameTemplateWithInset`, `UICheckButtonTemplate`,
-  `InputBoxTemplate`, `UIPanelButtonTemplate`) — a clipped row list
-  scrolled by the mouse wheel instead of a ScrollBox, and two layer
-  buttons (Class / This character) instead of side tabs: the ScrollBox and
-  side-tab templates could not be verified outside the game. Revisit if
-  the plain list reads poorly.
-- The "overridden" and "new" states are small tags on the row.
+- Mirrors the Cooldown Manager settings window (M10): a portrait frame, a
+  search box with a gear menu (Options, Reset character to class),
+  four collapsible sections of 38 px icons seven to a row — Timeline, Long
+  cooldowns, Engine lanes (with its n/6 count), Not displayed — a layer
+  dropdown (<Class> (all characters) / This character) and Revert at the
+  bottom. Never built by inheriting `CooldownViewerSettings*` templates,
+  whose mixins are wired to Blizzard's Cooldown Manager data and settings
+  store: it uses `ButtonFrameTemplate`, `SearchBoxTemplate`,
+  `ListHeaderThreeSliceTemplate`, `ScrollFrameTemplate`,
+  `WowStyle1DropdownTemplate` and `MenuUtil` menus, each with a plain
+  fallback.
+- Icons only; the tooltip is the spell's own plus a line per state (manual
+  cooldown, overridden, new, long by itself). A manual cooldown shows as
+  seconds at the icon's corner; "new" and "L" (an Engine-lane spell flagged
+  long) are small marks at the other; "=" marks a spell long by itself,
+  which cannot leave Long cooldowns for Timeline.
+- Drag an icon to reorder within a section or drop it on another; a ghost
+  icon follows the cursor. Dragging is off while the search box has text.
+  Right-click: Set cooldown..., Clear cooldown, Long cooldown (Engine lanes
+  only), Move to each section.
+- The window sits above Edit Mode (`FULLSCREEN_DIALOG`), so it opens from
+  Edit Mode's panel without leaving it.
+
+### Edit Mode
+
+- The timeline in Edit Mode wears Blizzard's selection frame: the
+  `editmode-actionbar-highlight` kit while idle, `-selected` once clicked,
+  with the label "Action Timeline"; a plain band when the atlases are
+  missing.
+- Clicking it opens the settings panel under it (over it when there is no
+  room): Scale (50–200 %), Opacity (10–100 %), Length (Narrow…Wide, Short…Tall
+  when vertical), Bar height (Short…Tall), Visible, Orientation, Ready row,
+  and the buttons Reset position and Advanced Combat Timeline Settings (the
+  spell window, as the Cooldown Manager's "Advanced Cooldown Settings"), with a line pointing to
+  `/actiontimeline options`. It closes
+  when the timeline is deselected (Blizzard selecting a system deselects it),
+  with its close button, or when Edit Mode closes.
 
 ### Motion trail
 

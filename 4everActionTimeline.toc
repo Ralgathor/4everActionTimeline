@@ -40,4 +40,5 @@ Casts.lua
 Options.lua
 LaneWindow.lua
 EditMode.lua
+EditModeDialog.lua
 TestMode.lua

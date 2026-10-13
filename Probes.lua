@@ -22,6 +22,10 @@ Addon.PROBES = {
 	onNextSwingAtSwing = true,
 	-- Frame placement: ForeverCDM's EventRegistry Edit Mode pattern (probe 9).
 	editMode = "eventregistry",
+	-- Calling Blizzard's Edit Mode manager from our handlers (ClearSelectedSystem,
+	-- CheckHideAndLockEditMode, ShowUIPanel(EditModeManagerFrame)) taints the
+	-- raid frames' updates (M10 probes E3, E6, in game, build 70338): none of
+	-- it is called. Only post-hooks on it (hooksecurefunc) are used.
 	-- GCD lengths in seconds, both measured (probe 10, follow-up G1b).
 	gcd = 1.5,
 	energyGCD = 1.0,

@@ -151,11 +151,21 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   per rotation ability, filled while the spell is ready (a cooling spell's
   slot is an empty outline).
 - **long cooldown** — a tracked spell kept out of the ready row: a cooldown
-  of 30 s or more by default, or tagged in class data or the lane window.
+  of 30 s or more by default, or tagged in class data or flagged in the spell
+  window.
   _Avoid_: major cooldown (implies a judgement about the spell's value).
 
 ## Settings
 
+- **spell window** — `/actiontimeline config`: every class spell as an icon
+  in one of four **sections**, as the Cooldown Manager's settings window
+  does: **Timeline**, **Long cooldowns**, **Engine lanes** (the sink
+  spells) and **Not displayed**. A section is derived from a spell's flags
+  at the edited layer; dropping an icon on a section writes them. _Avoid_:
+  "lane window", "lane list".
+- **Edit Mode panel** — the settings panel that opens beside the timeline
+  when it is clicked in Edit Mode: scale, opacity, length, bar height,
+  visibility, orientation, ready row side (ADR-0008).
 - **shipped defaults / class layer / player layer** — the three settings
   layers, lowest to highest. Each stores only what was changed at its level;
   an unset key falls through to the layer below (ADR-0002). _Avoid_:

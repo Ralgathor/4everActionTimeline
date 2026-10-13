@@ -1,11 +1,14 @@
 -- 4everActionTimeline — the Settings category (docs/SPEC.md, Settings
 -- surface split). The client's Settings vertical layout (12.x; Forever has
 -- no InterfaceOptions_AddCategory) holds the globals: checkboxes, sliders
--- and dropdowns only - the lane list lives in the addon's own window
--- (/actiontimeline config), and nothing dynamic registers here. Proxy
+-- and dropdowns only - the frame's own settings live in the Edit Mode
+-- panel, the lane list in the spell window (/actiontimeline config), and
+-- nothing dynamic registers here. Proxy
 -- settings read and write through Addon:GetSetting / SetSetting, so every
 -- change applies live and is stored at the player layer (only when it
--- differs from the default).
+-- differs from the default). The category links to the other places the
+-- timeline is configured (the spell window, Edit Mode), under section
+-- headers; a setting that only matters under another one hangs off it.
 --
 -- Dropdown contract on this client (4everSwingTimer, verified against the
 -- shipped Blizzard_Settings.lua): CreateDropdown's options argument is
@@ -17,7 +20,7 @@ local Options = {}
 Addon.Options = Options
 
 local VAR_PREFIX = "4everActionTimeline."
-local category
+local category, layout
 
 local function Proxy(key, varType, name)
 	return Settings.RegisterProxySetting(category, VAR_PREFIX .. key, varType, name, Addon.DEFAULTS[key],
@@ -30,7 +33,7 @@ local function Proxy(key, varType, name)
 end
 
 local function Checkbox(key, name, tooltip)
-	Settings.CreateCheckbox(category, Proxy(key, Settings.VarType.Boolean, name), tooltip)
+	return Settings.CreateCheckbox(category, Proxy(key, Settings.VarType.Boolean, name), tooltip)
 end
 
 local function Slider(key, name, low, high, step, tooltip)
@@ -38,7 +41,7 @@ local function Slider(key, name, low, high, step, tooltip)
 	if options.SetLabelFormatter and MinimalSliderWithSteppersMixin then
 		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right)
 	end
-	Settings.CreateSlider(category, Proxy(key, Settings.VarType.Number, name), options, tooltip)
+	return Settings.CreateSlider(category, Proxy(key, Settings.VarType.Number, name), options, tooltip)
 end
 
 local function Dropdown(key, name, entries, tooltip)
@@ -49,69 +52,63 @@ local function Dropdown(key, name, entries, tooltip)
 		end
 		return container:GetData()
 	end
-	Settings.CreateDropdown(category, Proxy(key, Settings.VarType.String, name), Entries, tooltip)
+	return Settings.CreateDropdown(category, Proxy(key, Settings.VarType.String, name), Entries, tooltip)
+end
+
+-- A section header; the layout's AddInitializer and the header initializer
+-- are nil-guarded (the category still builds without them).
+local function Header(text, tooltip)
+	if layout and layout.AddInitializer and CreateSettingsListSectionHeaderInitializer then
+		layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text, tooltip))
+	end
+end
+
+-- A row with a button on it.
+local function Link(name, buttonText, onClick, tooltip)
+	if layout and layout.AddInitializer and CreateSettingsButtonInitializer then
+		layout:AddInitializer(CreateSettingsButtonInitializer(name, buttonText, onClick, tooltip, true))
+	end
+end
+
+-- The control is usable only while `enabled()` is true.
+local function DependsOn(initializer, parent, enabled)
+	if initializer and parent and initializer.SetParentInitializer then
+		initializer:SetParentInitializer(parent, enabled)
+	end
 end
 
 function Options:Init()
 	if category or not (Settings and Settings.RegisterVerticalLayoutCategory) then
 		return
 	end
-	category = Settings.RegisterVerticalLayoutCategory(Addon.name)
+	category, layout = Settings.RegisterVerticalLayoutCategory(Addon.name)
 	Settings.RegisterAddOnCategory(category)
 
-	Dropdown("visibility", "Show the timeline", {
-		{ "combat", "In combat", "Shown while you are in combat." },
-		{ "always", "Always", "Always shown." },
-		{ "active", "While active", "Shown while anything is on the timeline: a swing, a cast, a GCD, a cooling spell, a recent mark." },
-	}, "When the timeline frame is shown. Test mode and Edit Mode always show it.")
+	Header("Windows", "Where the timeline is placed and which spells it shows.")
+	Link("Timeline spells", "Open", function()
+		Addon.LaneWindow:Open()
+	end, "Choose the spells on the timeline, their order, manual cooldowns and engine lanes.")
+	Header("Position and size", "Open Edit Mode (Esc, then Edit Mode) and click the timeline: its panel holds the position, scale, opacity, length, bar height, past and future windows, engine lane spacing, visibility, orientation, ready row side, skin, GCD style and seconds scale.")
 
-	-- Look
-	Dropdown("readyRowSide", "Ready row side", {
-		{ "past", "Past side", "The ready spells sit before the now line." },
-		{ "future", "Future side", "The ready spells sit after the now line." },
-	}, "Which side of the now line the ready row under the bar sits on.")
-	Dropdown("barGcd", "GCD", {
-		{ "tint", "Tint", "The GCD tints the bar's body." },
-		{ "strip", "Strip", "The GCD is a strip along the bar's bottom edge, leaving its body to casts and icons." },
-	}, "How the bar draws the GCD.")
-	Checkbox("barScale", "Seconds scale", "Cuts the bar's border at 1, 3 and 5 s either side of the now line, with a tick and the seconds under it.")
-	Dropdown("skin", "Skin", {
-		{ "native", "Native", "Blizzard's cast bar and swing timer art." },
-		{ "flat", "Flat", "A plain dark bar with a thin border." },
-	}, "The timeline's art. A Native element whose art is missing on this client falls back to Flat.")
-	Dropdown("orientation", "Orientation", {
-		{ "horizontal", "Horizontal", "Past on the left, future on the right." },
-		{ "horizontalFlipped", "Horizontal, flipped", "Future on the left, past on the right." },
-		{ "vertical", "Vertical", "Future at the top, past at the bottom." },
-		{ "verticalFlipped", "Vertical, flipped", "Future at the bottom, past at the top." },
-	}, "Which way time runs.")
-
-	-- Time and size
-	Slider("pastWindow", "Past window (s)", 0.5, 10, 0.5, "Seconds shown on the past side of the now line.")
-	Slider("futureWindow", "Future window (s)", 2, 15, 0.5, "Seconds shown on the future side of the now line. Predictions further away wait at the far edge.")
-	Slider("width", "Length", 200, 1200, 10, "The bar's length along the time axis in pixels; the time scale follows from it.")
-	Slider("laneHeight", "Bar height", 16, 48, 1, "The bar's height in pixels; its icons and casts fill it inside its border.")
-	Slider("laneSpacing", "Engine lane spacing", 0, 16, 1, "Space in pixels above each engine-drawn lane's row under the bar.")
-	Slider("scale", "Scale", 0.5, 2.0, 0.05, "Overall scale. Place the frame in Edit Mode.")
-	Slider("opacity", "Opacity", 0.1, 1.0, 0.05, "The whole timeline's opacity.")
-
-	-- Lanes
+	Header("Lanes")
 	Checkbox("showMainhand", "Main-hand lane", "The main-hand swing lane (needs a main-hand weapon).")
 	Checkbox("showOffhand", "Off-hand lane", "The off-hand swing lane (needs an off-hand weapon, not a shield or held item).")
 	Checkbox("showRanged", "Ranged lane", "The ranged swing lane (needs a ranged weapon or wand).")
 	Checkbox("showGcd", "GCD lane", "The global cooldown windows.")
 	Checkbox("showCasts", "Cast lane", "Your casts and channels.")
 
-	-- GCD length
-	Dropdown("gcdOverride", "GCD length", {
+	Header("Global cooldown")
+	local gcdLength = Dropdown("gcdOverride", "GCD length", {
 		{ "auto", "By power type", "1.0 s for energy users, 1.5 s otherwise (both measured on Forever)." },
 		{ "1.5", "1.5 s" },
 		{ "1.0", "1.0 s" },
 		{ "custom", "Custom", "The custom value below." },
 	}, "How long the GCD lane's windows are.")
-	Slider("gcdCustom", "Custom GCD (s)", 0.5, 2.0, 0.1, "Used when GCD length is Custom.")
+	DependsOn(Slider("gcdCustom", "Custom GCD (s)", 0.5, 2.0, 0.1, "Used when GCD length is Custom."), gcdLength, function()
+		return Addon:GetSetting("gcdOverride") == "custom"
+	end)
 
-	-- Engine-drawn lanes
+	Header("Engine lanes")
 	Checkbox("sinkCountdown", "Engine lane countdown",
 		"Show the engine's own countdown on engine-drawn lanes (the true remaining time; needs the game's \"show cooldown numbers\" option).")
 end

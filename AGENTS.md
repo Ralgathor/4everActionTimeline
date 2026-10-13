@@ -11,7 +11,8 @@ ranged), the GCD, the player's casts, and one lane per tracked spell's
 cooldown. Happened marks sit on the past side of the now line, predicted
 marks on the future side (which side is which follows the orientation).
 
-Status: **M9, the Bar track layout and Auto Shot as a cast** — the event
+Status: **M10, configuration in Blizzard's patterns** (after M9, the Bar track
+layout and Auto Shot as a cast) — the event
 store, the renderer (one layout, Bar track: every lane on one framed bar,
 ADR-0007; Native and Flat skins, four orientations, the card stack), test
 mode, live hand, GCD, cast, spell and engine-drawn sink lanes, the Settings
@@ -96,12 +97,21 @@ addons are independent (ADR-0003).
 - `Casts.lua` — the cast lane: completions, the in-flight now-line icon and
   completion mark, pushback, stopped casts, channels.
 - `Options.lua` — the Settings category: proxies over `GetSetting` /
-  `SetSetting` (checkbox, slider, dropdown only; dropdown options are a
-  function).
-- `LaneWindow.lua` — `/actiontimeline config`: the lane list (enable,
-  engine lane, manual cooldown, drag order) per layer.
-- `EditMode.lua` — placement in Edit Mode (EventRegistry callbacks, own
-  drag handle, snap, position at the player layer).
+  `SetSetting` (checkbox, slider, dropdown; dropdown options are a
+  function), section headers, buttons to the other places and a dependent
+  control (ADR-0008).
+- `LaneWindow.lua` — `/actiontimeline config`, the spell window in the
+  Cooldown Manager's pattern: four sections of icons (Timeline, Long
+  cooldowns, Engine lanes, Not displayed), drag between them, a right-click
+  menu, search, a layer dropdown, Revert. `SectionOf` and `Drop` hold the
+  rules without frames.
+- `EditMode.lua` — placement in Edit Mode (EventRegistry callbacks, our own
+  copy of Blizzard's selection art, drag, snap, one
+  position per Edit Mode layout at the player layer).
+- `EditModeDialog.lua` — the settings panel that opens when the timeline is
+  clicked in Edit Mode: scale, opacity, length, bar height, past and future window,
+  engine lane gap, visibility, orientation, ready row side, skin, GCD style,
+  seconds scale, and buttons to the other places.
 - `TestMode.lua` — `/actiontimeline test`: fake events and test lanes;
   `test effects`: the swing-event replay (seam 1b).
 - `.pkgmeta` — BigWigs packager externals (LibStub, CallbackHandler-1.0, the
@@ -138,11 +148,14 @@ Do not commit `Libs/` or `.release/` — generated and gitignored.
 ## Settings API constraints (12.x)
 
 - Use `Settings.RegisterVerticalLayoutCategory` + `Settings.RegisterAddOnCategory`
-  with proxy settings. The vertical layout supports checkbox, slider and
-  dropdown only — no buttons, no lists, no color pickers.
-- Globals live in the Settings category; the lane list (per-spell enable,
-  sink opt-in, manual override, drag order) lives in the addon's own
-  settings window. Nothing dynamic registers in the Settings category.
+  with proxy settings. Beyond checkbox, slider and dropdown, build 70338
+  has section headers (`CreateSettingsListSectionHeaderInitializer`),
+  button rows (`CreateSettingsButtonInitializer`) and dependent controls
+  (`initializer:SetParentInitializer`), added through the layout (the
+  category call's second return) — no lists, no color pickers.
+- The frame's own settings live in the Edit Mode panel, the lane list in the
+  spell window, the rest in the Settings category (ADR-0008). Nothing
+  dynamic registers in the Settings category.
 
 ## Verification
 

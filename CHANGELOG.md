@@ -44,17 +44,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Engine lanes (`/actiontimeline sink`, up to 6 spells): a thin row under
   the bar where the game itself places the spell's icon, exact even in
   combat, with its own countdown if you want it.
-- Your spell list in `/actiontimeline config`: pick the spells to track,
-  reorder them, set a manual cooldown, mark one as long - for your whole
-  class or this character only.
-- Settings (Options > AddOns, or `/actiontimeline options`): when the
-  timeline shows (in combat, always, or while anything is on it), Blizzard
-  cast bar art or a flat look, four orientations, the past and future
-  window, length, bar height, scale and opacity, the ready row on either
-  side of the now line, the global cooldown style, an optional seconds
-  scale at 1, 3 and 5 s, which swing and cast lanes to show, and the
-  global cooldown length.
-- Move the timeline in Edit Mode.
+- Your spell list in `/actiontimeline config`, laid out like the Cooldown
+  Manager's: spells as icons in four sections - Timeline, Long cooldowns,
+  Engine lanes, Not displayed - dragged to reorder or move between them,
+  a right-click menu for a manual cooldown, a search box, and Revert. For
+  your whole class or this character only.
+- Edit Mode: the timeline moves like Blizzard's own frames (their
+  highlight, snapping), keeps a position for each Edit
+  Mode layout, and a click opens its panel: scale, opacity, length, bar
+  height, past and future window, engine lane gap, when it shows, four orientations, the ready row side, the skin,
+  the global cooldown style and the seconds scale.
+- Settings (Options > AddOns, or `/actiontimeline options`): the global
+  cooldown length, which swing and cast lanes to show, and the engine lane
+  countdown, with a button to the spell list.
 - `/actiontimeline test` shows every kind of mark on a running clock, and
   `/actiontimeline test effects` replays the swing timing feedback.
 - If the game hides a value the timeline needs, the event is skipped and

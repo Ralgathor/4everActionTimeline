@@ -469,3 +469,22 @@ Follow-up session (Part G, same day) decisions:
 | 13 HS SUCCEEDED | at the press — cast-lane mark |
 | 14 atlases | each missing atlas uses its Flat equivalent |
 | 15 form read | secret — no wrong-form unusable mark |
+
+
+## Part E — configuration surfaces (build 70338, M10)
+
+Forever's own UI source (the `forever` branch of the wow-ui-source mirror,
+1.60.1 build 70338) ships the Cooldown Manager and a Swing Timer, both
+configured through Edit Mode, a content window and Options. The source says
+each pattern below works for an addon; these probes confirm it on the client
+before the code depends on it. Verdicts go to `Addon.PROBES`.
+
+| Probe | Question | Steps | Verdict goes to |
+|---|---|---|---|
+| E1 Settings widgets | Do `CreateSettingsButtonInitializer`, `CreateSettingsListSectionHeaderInitializer` and `initializer:SetParentInitializer` work on the addon's category? | Open Options: the headers, the "Timeline spells" button, Custom GCD greyed unless GCD length is Custom | built in (nil-guarded) |
+| E2 Selection art | Do the `editmode-actionbar-highlight` / `-selected` nine-slice kits draw on our frame? | Enter Edit Mode: blue frame and label on the timeline, yellow when clicked | built in (falls back to a band) |
+| E3 Hand-off | Can our click clear Blizzard's own selection (`EditModeManagerFrame:ClearSelectedSystem()`) untainted? | **Fail** (build 70338, in game): CompactUnitFrame_UpdateHealPrediction errors, "execution tainted by 4everActionTimeline", on every raid-frame update. Never called; both selections can show. | built out |
+| E4 Layouts | What do `GetActiveLayoutInfo().layoutType / layoutName` report for the preset layouts and a new one; does `EDIT_MODE_LAYOUTS_UPDATED` fire on a switch? | Switch layouts in Edit Mode: the timeline follows its own position | built in |
+| E5 Keys | Is `SetPropagateKeyboardInput` callable by an addon (arrow-key nudge)? | **Fail** (build 70338, in game): ADDON_ACTION_BLOCKED, protected. No nudge; no keyboard capture. | built out |
+| E6 Opening Edit Mode | Can our buttons step Edit Mode aside (`CheckHideAndLockEditMode`) untainted? | **Fail** (build 70338), called directly and through `securecallfunction` alike: raid frames' CompactUnitFrame update errors, "execution tainted by 4everActionTimeline". No Options button in the panel; `/actiontimeline options` in chat. | built out |
+| E7 Stacking | Does the spell window (`FULLSCREEN_DIALOG`) take the mouse over open Edit Mode? | Pass (in game): it opens over Edit Mode. The Settings panel does not (E6). | built in |

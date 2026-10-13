@@ -10,7 +10,7 @@ local LIB_MAJOR = "LibClassicSwingTimerAPI"
 -- The embedded pin is the library's v2.2.0 stable release (LibStub MINOR 37).
 local REQUIRED_LIB_MINOR = 37
 -- Bumped with every saved-variable shape change; Migrate() upgrades older data.
-local SCHEMA_VERSION = 1
+local SCHEMA_VERSION = 2
 
 FourEverActionTimeline = {}
 local Addon = FourEverActionTimeline
@@ -36,8 +36,17 @@ local function NewDB()
 end
 
 local function Migrate(db)
-	-- No older schema exists yet; future versions upgrade db here, one step
-	-- per version, before stamping the current one.
+	-- Schema 2: the timeline's position is kept per Edit Mode layout; the one
+	-- position becomes the "default" every layout without its own falls back to.
+	if (db.schemaVersion or 0) < 2 then
+		for _, player in pairs(db.players or {}) do
+			if player.position then
+				player.positions = player.positions or {}
+				player.positions.default = player.position
+				player.position = nil
+			end
+		end
+	end
 	db.schemaVersion = SCHEMA_VERSION
 end
 

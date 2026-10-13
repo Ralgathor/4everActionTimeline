@@ -6,7 +6,8 @@ about to happen, laid out around a now line.
 > **Status: early build.** Live swings (main hand, off hand, ranged), the
 > GCD, your casts and spell cooldowns in one framed bar read like a cast
 > bar, in Blizzard's own cast bar art or a flat look, horizontal or
-> vertical. Cast each tracked spell once out of combat so its
+> vertical. Move it in Edit Mode and click it there for its size and
+> visibility; pick its spells in `/actiontimeline config`. Cast each tracked spell once out of combat so its
 > cooldown is learned (`/actiontimeline calibration` shows what is known).
 
 ## What it will show
