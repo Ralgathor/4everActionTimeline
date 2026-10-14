@@ -121,6 +121,9 @@ end
 local function SetPhase(lane, phase, readyAt, exact)
 	local state = lane.state
 	local returned = state.phase == "cooling" and phase == nil
+	if state.phase == nil and phase == "cooling" then
+		Addon.Effects:Finish(lane) -- used: it leaves the ready stack
+	end
 	if phase ~= "cooling" then
 		state.castAt = nil
 	end

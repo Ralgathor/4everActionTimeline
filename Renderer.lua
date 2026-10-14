@@ -28,6 +28,7 @@ local MovingTexture = Util.MovingTexture
 local GetTime = GetTime
 local debugprofilestop = debugprofilestop
 local ipairs, abs, max, min, random, wipe = ipairs, math.abs, math.max, math.min, math.random, wipe
+local EaseOut = Util.EaseOut
 local cos, sin, pi = math.cos, math.sin, math.pi
 local remove = table.remove
 
@@ -48,10 +49,9 @@ local URGENT_LEAD = 1.5
 local WITHDRAW_LEAD, WITHDRAW_MATCH, WITHDRAW_TIME = 0.1, 0.05, 0.2
 -- A prediction that appears fades in over Blizzard's intro time.
 local ENTER_TIME = 0.2
--- The highlight glow (Effects:Highlight): around an icon at Blizzard's
--- overhang, around a diamond wider. (Blizzard's own highlight art draws a
--- blank square here, build 70235.)
-local HIGHLIGHT_ICON, HIGHLIGHT_DIAMOND = 1.5, 2.6
+-- A parked ready icon whose place in the stack changes glides there (a
+-- place, not an instant: the jump rule is for marks placed by time).
+local PARK_GLIDE = 0.15
 local CHEVRON_COLOR = { 1, 1, 1 }
 -- Red (cast failure, clip) and amber (the held ranged hand) are the effect
 -- colors, so a border always matches its pop.
@@ -147,6 +147,7 @@ local function ResetWidget(widget)
 	widget:Hide()
 	widget:ClearAllPoints()
 	widget.desc, widget.lane, widget.laneFrame, widget.visible, widget.x, widget.y = nil, nil, nil, nil, nil, nil
+	widget.flashStart, widget.glideStart = nil, nil
 end
 
 -- A mark's frame level in its stack (nil: the marks' own level, `base`).
@@ -228,6 +229,10 @@ local function ConfigureMark(mark, desc)
 		mark.iconTexture = icon
 		mark.icon:SetTexture(icon)
 	end
+	-- Only a parked icon glides; any other forgets where it stood.
+	if not desc.parked then
+		mark.x, mark.glideStart = nil, nil
+	end
 	local desaturated = desc.desaturated and true or false
 	if mark.desaturated ~= desaturated then
 		mark.desaturated = desaturated
@@ -279,7 +284,9 @@ local function ConfigureDiamond(diamond, desc)
 	Skin.StyleDiamond(diamond.art, desc.radius, desc.hollow)
 	Skin.SetDiamondPause(diamond.art, desc.glyph == "pause")
 	-- A held ranged diamond's outline turns amber.
-	Skin.SetDiamondColor(diamond.art, desc.hollow and BORDER_COLORS[desc.border] or desc.color)
+	-- Kept: a flash (PlaceDiamond) eases back to it.
+	diamond.baseColor = desc.hollow and BORDER_COLORS[desc.border] or desc.color
+	Skin.SetDiamondColor(diamond.art, diamond.baseColor)
 	diamond.alphaValue, diamond.fadeAlpha = desc.alpha or 1, nil
 	diamond:SetAlpha(diamond.alphaValue)
 end
@@ -433,7 +440,7 @@ local function PlaceWidget(widget, desc, along, t, now)
 			desc.highlighted = inside
 		elseif inside and not desc.highlighted then
 			desc.highlighted = true
-			Effects:Highlight(widget, desc.radius and desc.radius * 2 * HIGHLIGHT_DIAMOND or (desc.size or Layout.iconSize) * HIGHLIGHT_ICON)
+			Effects:Highlight(widget, desc)
 		end
 	end
 	local shake = desc.shake
@@ -506,6 +513,15 @@ local function PlaceMark(mark, now)
 	-- An icon ending a bar sits past its end, its near edge on it (not when
 	-- pinned at the far edge: it would leave the frame).
 	local along = desc.along or Layout:TimeToOffset(t, now)
+	local glideStart = mark.glideStart
+	if glideStart then
+		local p = (now - glideStart) / PARK_GLIDE
+		if p >= 1 then
+			mark.glideStart = nil
+		else
+			along = mark.glideFrom + (along - mark.glideFrom) * EaseOut(p)
+		end
+	end
 	if desc.endsBar and not pinned then
 		along = along + mark.size / 2
 	end
@@ -533,6 +549,20 @@ local function PlaceDiamond(diamond, now)
 	end
 	PlaceWidget(diamond, desc, Layout:TimeToOffset(t, now), t, now)
 	SetVisible(diamond, true)
+	-- A flash (Effects:Highlight): the diamond eases from the flash's color
+	-- back to its own.
+	local flashStart = diamond.flashStart
+	if flashStart then
+		local p = (now - flashStart) / Effects.DIAMOND_FLASH_TIME
+		local base = diamond.baseColor
+		if p >= 1 then
+			diamond.flashStart = nil
+			Skin.SetDiamondColor(diamond.art, base)
+		else
+			local from, k = diamond.flashColor, EaseOut(max(p, 0))
+			Skin.TintDiamond(diamond.art, from[1] + (base[1] - from[1]) * k, from[2] + (base[2] - from[2]) * k, from[3] + (base[3] - from[3]) * k)
+		end
+	end
 end
 
 local function PlaceTick(tick, now)
@@ -844,6 +874,19 @@ local function RebuildLane(lane, now, withdraw)
 			Build(lane, desc)
 		end
 	end
+	-- A correction (Effects:Correct): the lane's next diamond, rebuilt at its
+	-- new instant, lights in the correction's color.
+	local flashColor = lane.flashColor
+	if flashColor then
+		lane.flashColor = nil
+		for _, diamond in ipairs(diamonds.used) do
+			local desc = diamond.desc
+			if desc.predicted and not desc.chain then
+				Effects:Highlight(diamond, desc, flashColor)
+				break
+			end
+		end
+	end
 	-- Jittered, so the lanes' safety passes do not all land on one frame.
 	lane.nextRebuild = now + SAFETY_REBUILD * (0.75 + 0.5 * random())
 	if withdraw then
@@ -906,10 +949,16 @@ local function StackMarks(now)
 		local item = stackItems[i]
 		Raise(item.mark, item.desc.front and base + 1 or nil, base)
 	end
-	-- The ready stack's front on top, each fold behind it.
+	-- The ready stack's front on top, each fold behind it; one whose place
+	-- changed glides from where it shows.
 	for i = 1, readyCount do
-		local index = parkedMarks[i].desc.parkIndex
-		Raise(parkedMarks[i], index and base + 2 + readyCount - index or nil, base)
+		local mark = parkedMarks[i]
+		local desc = mark.desc
+		local index = desc.parkIndex
+		Raise(mark, index and base + 2 + readyCount - index or nil, base)
+		if index and mark.x and mark.x ~= desc.along then
+			mark.glideFrom, mark.glideStart = mark.x, now
+		end
 	end
 	for i = readyCount + 1, #parkedMarks do
 		parkedMarks[i] = nil

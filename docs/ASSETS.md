@@ -50,7 +50,8 @@ Manager bars of the timeline's Bars view):
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); the return ring on the ready stack or the now line, and the highlight flash, pale (`ADD`). |
+| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); and, only without `UI-HUD-ActionBar-GCD-Flipbook`, the return ring and an icon's urgency flash, pale (`ADD`). |
+| `UI-HUD-ActionBar-GCD-Flipbook` | atlas | source (the Cooldown Manager's CooldownFlash), not yet seen in game | An icon's urgency flash at 1.5 s and a return's flash: 22 frames (11 rows of 2) over 0.75 s, additive at 1.35x the icon's size, one frame shown at a time. Missing, the pip glow above. |
 
 ## Flat skin
 

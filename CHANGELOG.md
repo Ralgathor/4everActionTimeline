@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   line and flashes once when it is one global cooldown away. Spells you can
   press now stay on the now line, stacked: the ones you can use in front,
   then those tinted blue (you lack the resource) or grey (unusable), three
-  at a time. Or turn the stack off and let the
+  at a time; using one makes it burst out of the stack, and the others
+  slide into place. Or turn the stack off and let the
   Cooldown Manager show them: a returning spell then flashes on the now
   line. Long cooldowns (30 s or more) never stack and flash on the now line
   when they return. Icons that would overlap stack,

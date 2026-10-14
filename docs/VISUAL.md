@@ -284,9 +284,10 @@ a section says otherwise:
   | Moment | Blizzard | Here |
   |---|---|---|
   | Appears | fade in 0.2 s, sliding 25 px in across the track over 0.35 s | at the far edge, already dim; a prediction that appears inside the window fades in over 0.2 s in place |
-  | Reaches zero | grows to 1.35× and fades over 0.2 s, its glow at full | landings and returns: the pop or ring at the now line |
+  | Reaches zero | grows to 1.35× and fades over 0.2 s, its glow at full | landings and returns: the pop or ring at the now line; returns arriving together ring 0.1 s apart |
+  | Used (a parked ready icon) | — | grows to 1.35× and fades over 0.2 s where it stood in the ready stack (Blizzard's finish) |
   | Cancelled | fades over 0.2 s, sliding 25 px out | fades over 0.2 s in place (below); a stopped cast adds the red pop (Stopped casts) |
-  | Moved | glides 0.45 s between slots | jumps (Hand-lane effects) |
+  | Moved | glides 0.45 s between slots | a mark placed by time jumps (Hand-lane effects); a parked ready icon whose place in the stack changes glides there in 0.15 s |
 
 - A withdrawn prediction - a cadence chain dropped, a return cleared by a
   reset, a queued icon swapped back - fades over 0.2 s where it stood,
@@ -299,16 +300,31 @@ a section says otherwise:
   of the now line was used up, not withdrawn; a layout pass fades nothing.
 - The same pairing finds the arrivals: an unpaired new prediction fades in
   over 0.2 s from where it first stands.
+- Easing: the effects that grow and fade (pop, ring, linger, finish, streak)
+  ease out, as Blizzard's "OUT" smoothing does - fast at the start,
+  settling at the end (`Util.EaseOut`); the parked glide too. The
+  highlight keeps its rise and fall.
 
 ### Urgency
 
 - Built: the next landing, a queued ability's icon, the next Auto Shot and
   a returning cooldown change once as they cross 1.5 s (one GCD): the mark
-  steps from its far alpha to full and plays one flash - the pop's glow in
-  the return ring's color, rising to 0.9 and falling over 0.4 s
-  (Blizzard's HighlightGlow timing, a little stronger), around an icon at
-  1.5× its size, around a diamond at 2.6×. Nothing grows: an icon filling
-  the bar has no room. (Single lane offered a Growth cue and Detailed a
+  steps from its far alpha to full and plays one flash in its own shape.
+  An icon plays the Cooldown Manager's cooldown-ending flash
+  (`UI-HUD-ActionBar-GCD-Flipbook`, 22 frames over 0.75 s) over itself,
+  additive and 1.35× its size (at the icon's size, blended as Blizzard draws
+  it for a 30-40 px button, it was hard to see on an 18-24 px icon). A
+  diamond lights: its fill (a hollow one's outline) turns white and eases
+  back to its color over 0.45 s, on its edge of the bar, under a halo of its
+  shape (a white square turned 45°, additive, growing from 1.6× to 2.8× its
+  size and fading from 90 %).
+  Nothing grows: an icon filling the bar has no room. (First built as the
+  pop's glow stretched square, 1.5× an icon and 2.6× a diamond: that art is
+  the cast bar's trailing spark glow, wide and bright at one end, so it
+  read as an off-centre smudge, half off the bar beside a diamond. Without
+  the flipbook atlas an icon still falls back to it.)
+- A return flashes the same flipbook on its place (its place in the ready
+  stack at the parked size, or on the now line), staggered 0.1 s apart. (Single lane offered a Growth cue and Detailed a
   motion trail over the same 1.5 s; both removed with those layouts.)
 - Blizzard's rule is a moment, not a ramp: at a highlight time (5 s by
   default, a player setting, marked on the line by the pip and its number)
@@ -379,6 +395,11 @@ is never desaturated.
   equivalent of the bar addon's directional burst (teal lunge, amber
   flinch). Also drawn from an early-landing happened mark back to the
   abandoned prediction.
+- **The diamond lights in the effect's color**: with each pop, the hand's
+  next diamond flashes in the same teal, amber or red - its fill turning
+  that color and easing back over 0.45 s, under a halo of its shape in that
+  color - the urgency flash's look (Urgency) in the correction's color, so
+  the moved diamond itself says what happened.
 - **Pop budget**: teal once per correction; amber once per retry chain
   (later sawtooth jumps get the streak only); red once per reset.
 - **Held**: the next Auto Shot icon's border (or the hollow ranged

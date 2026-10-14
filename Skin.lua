@@ -243,6 +243,14 @@ function Skin.RegionCoords(texture, info, u0, u1)
 		c[7] == 0 and x0 or x1, c[8] == 0 and t or b)
 end
 
+-- Shows one cell of a region laid out as a grid (`columns` x `rows`, the
+-- cell at 0-based `column`, `row`): a flipbook's frame.
+function Skin.RegionCell(texture, info, column, row, columns, rows)
+	local l, r, t, b = info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord
+	local w, h = (r - l) / columns, (b - t) / rows
+	texture:SetTexCoord(l + column * w, l + (column + 1) * w, t + row * h, t + (row + 1) * h)
+end
+
 -- The link mark: a linked set returning together is one icon,
 -- badged in its corner - a dark square with a warm dot, in both skins (no
 -- link atlas exists, ASSETS.md).
@@ -373,12 +381,7 @@ function Skin.StyleDiamond(art, radius, hollow)
 end
 
 -- Tints the diamond `color` ({r, g, b}).
-function Skin.SetDiamondColor(art, color)
-	if art.color == color then
-		return
-	end
-	art.color = color
-	local r, g, b = color[1], color[2], color[3]
+local function TintDiamond(art, r, g, b)
 	if art.hollow then
 		for _, stroke in ipairs(art.strokes) do
 			stroke:SetVertexColor(r, g, b, 1)
@@ -386,6 +389,21 @@ function Skin.SetDiamondColor(art, color)
 	else
 		art.fill:SetVertexColor(r, g, b, 1)
 	end
+end
+
+function Skin.SetDiamondColor(art, color)
+	if art.color == color then
+		return
+	end
+	art.color = color
+	TintDiamond(art, color[1], color[2], color[3])
+end
+
+-- A passing color (a flash easing back): not kept, so the next
+-- SetDiamondColor applies whatever it is given.
+function Skin.TintDiamond(art, r, g, b)
+	art.color = nil
+	TintDiamond(art, r, g, b)
 end
 
 -- A paused hand's marks are frozen, which alone reads as a stuck diamond: its

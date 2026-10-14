@@ -35,7 +35,9 @@ outlines, a stack hanging under the now line, a fan, and no ready display
   inside the room the now line's reach already keeps across the bar, so the
   frame never changes size for it.
 - A cooling spell shows nothing in the stack (no outline). The ring flashes
-  on the spell's place in the stack when it returns.
+  on the spell's place in the stack when it returns. A used spell's icon
+  grows and fades where it stood (Blizzard's finish, 0.2 s); the icons
+  whose place changes glide there (0.15 s: places, not instants).
 - **None**: no ready marks. A returning cooldown's icon stays on the now line
   for 0.5 s, fading, under the ring. Blizzard's Cooldown Manager shows what
   is ready.

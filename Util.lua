@@ -166,6 +166,12 @@ end
 -- Color
 -- ---------------------------------------------------------------------------
 
+-- Blizzard's "OUT" smoothing for an animation's progress p (0..1): fast at
+-- the start, settling at the end.
+function Util.EaseOut(p)
+	return 1 - (1 - p) * (1 - p)
+end
+
 -- The grey a color desaturates to (luma weights), for flat-color glyphs
 -- that cannot use Texture:SetDesaturated.
 function Util.Gray(r, g, b)
