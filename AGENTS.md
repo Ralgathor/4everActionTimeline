@@ -67,13 +67,13 @@ addons are independent (ADR-0003).
   (Single lane's rules, ADR-0005, on Bar track's geometry, ADR-0006; the
   name is kept from when Single lane was a layout): `Adapt` rewrites one
   in place (glyph, offset across the bar, size, fade, art), the ready
-  row's slots and which spells have one, the card stack of overlapping
-  icons, the return ring's place.
+  stack on the now line and which spells park in it, the card stack of
+  overlapping icons, the return ring's place.
 - `BarTrack.lua` — the bar itself: its body, its
-  border cut at the now line and the seconds scale, the ready row's box, the
+  border cut at the now line and the seconds scale, the
   scale's ticks and seconds, the now line's second diamond.
 - `Effects.lua` — transient effects: reposition pop, correction streak,
-  across-lane shake.
+  across-lane shake, the return ring and a returning icon's linger.
 - `Sinks.lua` — the engine-drawn sink lanes: a StatusBar fed the secret
   remaining cooldown every frame, the icon a leaf on the fill's edge.
   Never read its geometry back.
@@ -110,7 +110,7 @@ addons are independent (ADR-0003).
   position per Edit Mode layout at the player layer).
 - `EditModeDialog.lua` — the settings panel that opens when the timeline is
   clicked in Edit Mode: scale, opacity, length, bar height, past and future window,
-  engine lane gap, visibility, orientation, ready row side, skin, GCD style,
+  engine lane gap, visibility, orientation, ready spells, skin, GCD style,
   seconds scale, and buttons to the other places.
 - `TestMode.lua` — `/actiontimeline test`: fake events and test lanes;
   `test effects`: the swing-event replay (seam 1b).

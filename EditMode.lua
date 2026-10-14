@@ -4,7 +4,8 @@
 -- layout tables). It listens for EventRegistry EditMode.Enter / Exit; while
 -- Edit Mode is open the timeline shows inside Blizzard's own selection art
 -- (blue while idle, yellow once clicked, a label), drags and snaps to
--- nearby Edit Mode frames when Edit Mode's snap is on. (No arrow-key nudge:
+-- nearby Edit Mode frames and the grid when Edit Mode's snap is on, drawing
+-- Blizzard's red snap preview lines while it drags. (No arrow-key nudge:
 -- capturing the keyboard needs SetPropagateKeyboardInput, protected on this
 -- client.) Clicking it opens its settings panel (EditModeDialog.lua). The
 -- position is stored UIParent-relative at the player layer, one per Edit
@@ -16,6 +17,9 @@ local Addon = FourEverActionTimeline
 
 local SNAP_DISTANCE = 10
 local HANDLE_MIN_HEIGHT = 30
+-- Blizzard's snap preview line (MagnetismPreviewLineTemplate): red, 1.5
+-- screen pixels.
+local PREVIEW_COLOR, PREVIEW_WIDTH = { 1, 0, 0 }, 1.5
 
 -- Blizzard's selection frame (EditModeSystemTemplates.lua), applied with
 -- NineSliceUtil to our own frame - never inherited, whose mouse handler
@@ -36,7 +40,7 @@ local SELECTION = {
 local EditMode = {}
 Addon.EditMode = EditMode
 
-local timeline, handle
+local timeline, handle, preview
 local selected = false
 
 -- ---------------------------------------------------------------------------
@@ -104,21 +108,34 @@ local function Rect(frame)
 end
 
 -- The smallest shift (within SNAP_DISTANCE) lining one of ours up with one of
--- theirs: edges and centers.
-local function Nearest(shift, ours, theirs)
+-- theirs (edges and centers), and the line it lines up on.
+local function Nearest(shift, at, ours, theirs)
 	for _, a in ipairs(ours) do
 		for _, b in ipairs(theirs) do
 			local delta = b - a
 			if math.abs(delta) <= SNAP_DISTANCE and (not shift or math.abs(delta) < math.abs(shift)) then
-				shift = delta
+				shift, at = delta, b
 			end
 		end
 	end
-	return shift
+	return shift, at
+end
+
+-- The same, putting one of ours on a line of a grid `spacing` apart through
+-- `center`.
+local function NearestLine(shift, at, ours, center, spacing)
+	local lines = {}
+	for i, a in ipairs(ours) do
+		lines[i] = center + math.floor((a - center) / spacing + 0.5) * spacing
+	end
+	return Nearest(shift, at, ours, lines)
 end
 
 -- With Edit Mode's snap on: the shift (UIParent units, either may be nil)
--- aligning the timeline to nearby Edit Mode frames.
+-- aligning the timeline to nearby Edit Mode frames and, while it shows, to
+-- Edit Mode's grid (lines `gridSpacing` apart through its center, as
+-- EditModeGridMixin:UpdateGrid draws them), then the x and y of the lines it
+-- lines up on. Only reads Blizzard's frames.
 local function Snap()
 	local manager = EditModeManagerFrame
 	if not (manager and manager.IsSnapEnabled and manager:IsSnapEnabled()) then
@@ -128,15 +145,86 @@ local function Snap()
 	if not left then
 		return
 	end
-	local dx, dy
+	local dx, dy, atX, atY
+	local xs, ys = { left, right, (left + right) / 2 }, { bottom, top, (bottom + top) / 2 }
 	for _, other in ipairs(manager.registeredSystemFrames or {}) do
 		local oLeft, oBottom, oRight, oTop = Rect(other)
 		if oLeft then
-			dx = Nearest(dx, { left, right, (left + right) / 2 }, { oLeft, oRight, (oLeft + oRight) / 2 })
-			dy = Nearest(dy, { bottom, top, (bottom + top) / 2 }, { oBottom, oTop, (oBottom + oTop) / 2 })
+			dx, atX = Nearest(dx, atX, xs, { oLeft, oRight, (oLeft + oRight) / 2 })
+			dy, atY = Nearest(dy, atY, ys, { oBottom, oTop, (oBottom + oTop) / 2 })
 		end
 	end
-	return dx, dy
+	local grid = manager.Grid
+	local spacing = grid and grid.gridSpacing
+	local gLeft, gBottom, gRight, gTop
+	if Plain(spacing) and spacing > 0 then
+		gLeft, gBottom, gRight, gTop = Rect(grid)
+	end
+	if gLeft then
+		spacing = spacing * grid:GetEffectiveScale() / UIParent:GetEffectiveScale()
+		dx, atX = NearestLine(dx, atX, xs, (gLeft + gRight) / 2, spacing)
+		dy, atY = NearestLine(dy, atY, ys, (gBottom + gTop) / 2, spacing)
+	end
+	return dx, dy, atX, atY
+end
+
+-- ---------------------------------------------------------------------------
+-- The snap preview: Blizzard's red lines, drawn by us
+-- ---------------------------------------------------------------------------
+
+-- While the timeline drags, a line across the screen where each axis would
+-- snap, as Edit Mode draws for its own frames (MagnetismPreviewLineMixin).
+-- Our own lines: asking Edit Mode's manager to draw them would taint.
+local function NewPreviewLine()
+	local line = preview:CreateLine(nil, "OVERLAY")
+	line:SetColorTexture(PREVIEW_COLOR[1], PREVIEW_COLOR[2], PREVIEW_COLOR[3], 1)
+	line:Hide()
+	return line
+end
+
+local function ShowPreviewLine(line, at, vertical)
+	if not at then
+		line:Hide()
+		return
+	end
+	line:SetThickness(Addon.Util.PixelSize(preview, PREVIEW_WIDTH))
+	if vertical then
+		line:SetStartPoint("BOTTOMLEFT", UIParent, at, 0)
+		line:SetEndPoint("TOPLEFT", UIParent, at, 0)
+	else
+		line:SetStartPoint("BOTTOMLEFT", UIParent, 0, at)
+		line:SetEndPoint("BOTTOMRIGHT", UIParent, 0, at)
+	end
+	line:Show()
+end
+
+local function UpdatePreview()
+	local _, _, atX, atY = Snap()
+	ShowPreviewLine(preview.vertical, atX, true)
+	ShowPreviewLine(preview.horizontal, atY, false)
+end
+
+local function StartPreview()
+	if not preview then
+		preview = CreateFrame("Frame", nil, UIParent)
+		preview:SetAllPoints(UIParent)
+		preview:SetFrameStrata("HIGH")
+		if not preview.CreateLine then
+			return
+		end
+		preview.vertical, preview.horizontal = NewPreviewLine(), NewPreviewLine()
+	end
+	if preview.vertical then
+		preview:SetScript("OnUpdate", UpdatePreview)
+		preview:Show()
+	end
+end
+
+local function StopPreview()
+	if preview then
+		preview:SetScript("OnUpdate", nil)
+		preview:Hide()
+	end
 end
 
 -- Stores the center (shifted by dx, dy UIParent units) at the active layout
@@ -213,6 +301,7 @@ local function SetActive(active)
 	Addon.editMode = active
 	if not active then
 		Select(false)
+		StopPreview()
 	end
 	handle:SetShown(active)
 	Addon.Renderer:MarkLayoutDirty()
@@ -247,9 +336,11 @@ local function BuildHandle()
 	handle:SetScript("OnDragStart", function()
 		Select(true)
 		timeline:StartMoving()
+		StartPreview()
 	end)
 	handle:SetScript("OnDragStop", function()
 		timeline:StopMovingOrSizing()
+		StopPreview()
 		Save()
 	end)
 	-- Keep the handle over the whole timeline as its height changes.

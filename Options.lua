@@ -88,7 +88,7 @@ function Options:Init()
 	Link("Timeline spells", "Open", function()
 		Addon.LaneWindow:Open()
 	end, "Choose the spells on the timeline, their order, manual cooldowns and engine lanes.")
-	Header("Position and size", "Open Edit Mode (Esc, then Edit Mode) and click the timeline: its panel holds the position, scale, opacity, length, bar height, past and future windows, engine lane spacing, visibility, orientation, ready row side, skin, GCD style and seconds scale.")
+	Header("Position and size", "Open Edit Mode (Esc, then Edit Mode) and click the timeline: its panel holds the position, scale, opacity, length, bar height, past and future windows, engine lane spacing, visibility, orientation, ready spells, skin, GCD style and seconds scale.")
 
 	Header("Lanes")
 	Checkbox("showMainhand", "Main-hand lane", "The main-hand swing lane (needs a main-hand weapon).")

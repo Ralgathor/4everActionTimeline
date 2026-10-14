@@ -26,8 +26,8 @@ so you can tell fact from forecast at a glance.
 Everything sits on one framed bar, read like a cast bar and from the
 corner of your eye: casts filling it, the GCD tinting it, returning
 cooldowns as icons inside it that flash as they come within a GCD, the
-swings as diamonds on its edges, and the spells you can press now in a row
-of fixed slots under it. With a ranged weapon, Auto Shot is drawn as a
+swings as diamonds on its edges, and the spells you can press now stacked
+on the now line. With a ranged weapon, Auto Shot is drawn as a
 cast: its short windup (when you must stand still) ends at the Auto Shot
 icon.
 

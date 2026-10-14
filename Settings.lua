@@ -14,8 +14,9 @@ local DEFAULTS = {
 	-- reads what is coming, so the past is short).
 	pastWindow = 1.5,
 	futureWindow = 10,
-	-- The ready row's slots end at the now line ("past") or start at it ("future").
-	readyRowSide = "past",
+	-- Ready spells park on the now line, stacked ("stack"), or show nothing
+	-- ("none": the Cooldown Manager shows them) (ADR-0009).
+	readySpells = "stack",
 	width = 700, -- pixels along the time axis; the time scale follows from it
 	laneHeight = 26, -- pixels: the bar's height
 	laneSpacing = 4, -- between the bar and each engine-drawn lane's row

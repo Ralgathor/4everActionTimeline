@@ -14,7 +14,7 @@
 --   shortCooldown [spell] = true: real cooldowns no longer than the GCD
 --                 (exempt from calibration's GCD-length rejection)
 --   long          [spell] = true: a long cooldown whatever its length (it
---                 gets no slot in the ready row; cooldowns of
+--                 is kept out of the ready stack; cooldowns of
 --                 30 s or more are long anyway)
 -- A file may leave out any field it does not use (Addon:ClassInfo
 -- supplies an empty one).

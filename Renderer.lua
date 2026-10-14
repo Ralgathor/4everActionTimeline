@@ -53,8 +53,6 @@ local ENTER_TIME = 0.2
 -- blank square here, build 70235.)
 local HIGHLIGHT_ICON, HIGHLIGHT_DIAMOND = 1.5, 2.6
 local CHEVRON_COLOR = { 1, 1, 1 }
--- A cooling spell's empty ready-row slot.
-local SLOT_OUTLINE_COLOR, SLOT_OUTLINE_ALPHA = { 0.9, 0.91, 0.93 }, 0.3
 -- Red (cast failure, clip) and amber (the held ranged hand) are the effect
 -- colors, so a border always matches its pop.
 local BORDER_COLORS = {
@@ -151,15 +149,20 @@ local function ResetWidget(widget)
 	widget.desc, widget.lane, widget.laneFrame, widget.visible, widget.x, widget.y = nil, nil, nil, nil, nil, nil
 end
 
+-- A mark's frame level in its stack (nil: the marks' own level, `base`).
+local function Raise(mark, level, base)
+	if mark.stackLevel ~= level then
+		mark.stackLevel = level
+		mark:SetFrameLevel(level or base)
+	end
+end
+
 local function ResetMark(mark)
 	ResetWidget(mark)
 	mark.chevron:Hide()
 	mark.pinned = nil
 	-- The card stack (StackMarks): the level, the "+n" and the link mark.
-	if mark.stackLevel then
-		mark.stackLevel = nil
-		mark:SetFrameLevel(markLayer:GetFrameLevel() + 1)
-	end
+	Raise(mark, nil, markLayer:GetFrameLevel() + 1)
 	if mark.moreText then
 		mark.moreText:Hide()
 		mark.moreShown = nil
@@ -175,30 +178,6 @@ local function CreateDiamond()
 	local diamond = CreateFrame("Frame", nil, markLayer)
 	diamond.art = Skin.CreateDiamond(diamond)
 	return diamond
-end
-
--- A cooling spell's ready-row slot: a faint square outline, the same in both
--- skins. Its edges stretch between two corners each (two anchor names on
--- purpose).
-local function CreateOutline()
-	local outline = CreateFrame("Frame", nil, markLayer)
-	local edges = {}
-	for i = 1, 4 do
-		edges[i] = outline:CreateTexture(nil, "ARTWORK")
-		edges[i]:SetTexture(WHITE)
-		edges[i]:SetVertexColor(SLOT_OUTLINE_COLOR[1], SLOT_OUTLINE_COLOR[2], SLOT_OUTLINE_COLOR[3], 1)
-	end
-	edges[1]:SetPoint("TOPLEFT")
-	edges[1]:SetPoint("TOPRIGHT")
-	edges[2]:SetPoint("BOTTOMLEFT")
-	edges[2]:SetPoint("BOTTOMRIGHT")
-	edges[3]:SetPoint("TOPLEFT")
-	edges[3]:SetPoint("BOTTOMLEFT")
-	edges[4]:SetPoint("TOPRIGHT")
-	edges[4]:SetPoint("BOTTOMRIGHT")
-	outline.edges = edges
-	outline:SetAlpha(SLOT_OUTLINE_ALPHA)
-	return outline
 end
 
 local function CreateTick()
@@ -305,21 +284,6 @@ local function ConfigureDiamond(diamond, desc)
 	diamond:SetAlpha(diamond.alphaValue)
 end
 
--- The outline's edges are a whole screen pixel thick (a thinner one can
--- vanish under the pixel grid).
-local function ConfigureOutline(outline, desc)
-	local size, line = desc.size, Util.PixelSize(frame, 1)
-	if outline.size ~= size or outline.line ~= line then
-		outline.size, outline.line = size, line
-		outline:SetSize(size, size)
-		local edges = outline.edges
-		edges[1]:SetHeight(line)
-		edges[2]:SetHeight(line)
-		edges[3]:SetWidth(line)
-		edges[4]:SetWidth(line)
-	end
-end
-
 -- A bar's art: the ATLAS key its descriptor names (`art`: the cast bar
 -- family, the GCD's Cooldown Manager bar), or plain without one or when the
 -- atlas is missing on the client.
@@ -391,7 +355,7 @@ end
 -- shake offset - never a time offset.
 local function Anchor(widget, along, across)
 	-- The same offsets land elsewhere in another orientation: a widget that
-	-- does not move (a ready-row slot) must still re-anchor when it turns.
+	-- does not move (a parked ready mark) must still re-anchor when it turns.
 	local orient = Layout.orient
 	if widget.x ~= along or widget.y ~= across or widget.orient ~= orient then
 		widget.x, widget.y, widget.orient = along, across, orient
@@ -457,7 +421,7 @@ end
 
 -- Marks and diamonds: sit `across` the bar (plus a shake), fade, and flash
 -- once (`highlight`) as they come within URGENT_LEAD of the now line
--- (SingleLane.Adapt decides). A fixed place (a ready-row slot: `t` nil)
+-- (SingleLane.Adapt decides). A fixed place (a parked ready mark: `t` nil)
 -- neither flashes nor fades.
 local function PlaceWidget(widget, desc, along, t, now)
 	local lead = t and t - now
@@ -529,7 +493,7 @@ local function PlaceMark(mark, now)
 		SetVisible(mark, false)
 		return
 	end
-	-- A ready-row slot (`along`) is a fixed place, not an instant: never
+	-- A parked ready mark (`along`) is a fixed place, not an instant: never
 	-- pinned, so the chevron of a track icon this widget was is hidden.
 	local t, pinned = nil, false
 	if not desc.along then
@@ -539,7 +503,13 @@ local function PlaceMark(mark, now)
 			return
 		end
 	end
-	PlaceWidget(mark, desc, (desc.along or Layout:TimeToOffset(t, now)) + (desc.peek or 0), t, now)
+	-- An icon ending a bar sits past its end, its near edge on it (not when
+	-- pinned at the far edge: it would leave the frame).
+	local along = desc.along or Layout:TimeToOffset(t, now)
+	if desc.endsBar and not pinned then
+		along = along + mark.size / 2
+	end
+	PlaceWidget(mark, desc, along + (desc.peek or 0), t, now)
 	pinned = pinned and not desc.noChevron
 	StackExtras(mark, desc)
 	if mark.pinned ~= pinned then
@@ -563,13 +533,6 @@ local function PlaceDiamond(diamond, now)
 	end
 	PlaceWidget(diamond, desc, Layout:TimeToOffset(t, now), t, now)
 	SetVisible(diamond, true)
-end
-
--- A ready-row slot's outline: a fixed place.
-local function PlaceOutline(outline)
-	local desc = outline.desc
-	Anchor(outline, desc.along, desc.across or 0)
-	SetVisible(outline, true)
 end
 
 local function PlaceTick(tick, now)
@@ -696,7 +659,6 @@ local MARKS = { key = "marks", create = CreateMark, reset = ResetMark, configure
 local POOLS = {
 	MARKS,
 	{ key = "diamonds", shape = "diamond", create = CreateDiamond, reset = ResetWidget, configure = ConfigureDiamond, place = PlaceDiamond },
-	{ key = "outlines", shape = "outline", create = CreateOutline, reset = ResetWidget, configure = ConfigureOutline, place = PlaceOutline },
 	{ key = "ticks", shape = "tick", create = CreateTick, reset = ResetWidget, configure = ConfigureTick, place = PlaceTick },
 	{ key = "bars", shape = "bar", create = CreateBar, reset = ResetBar, configure = ConfigureBar, place = PlaceBar },
 }
@@ -733,16 +695,18 @@ end
 local function PlaceRow(laneFrame, offset, extent)
 	laneFrame:ClearAllPoints()
 	laneFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", Layout:CrossOffsets(offset))
-	laneFrame:SetSize(Layout:Extents(Layout.frameWidth, extent))
+	laneFrame:SetSize(Layout:Extents(Layout.width, extent))
 	laneFrame:Show()
 end
 
 local function ApplyLayout()
 	Layout:Compute()
 	local lanes = Layout:Lanes()
-	frame:SetSize(Layout:Extents(Layout.frameWidth, max(Layout.height, 1)))
+	frame:SetSize(Layout:Extents(Layout.width, max(Layout.height, 1)))
 	frame:SetScale(Addon:GetSetting("scale"))
 	frame:SetAlpha(Addon:GetSetting("opacity"))
+	-- On the frame's scale, now it is set: whole screen pixels in from the bar's edges.
+	Layout.parkSize = SingleLane.ParkSize(frame)
 	-- The bar's lanes share its frame; each sink lane has a row frame.
 	local onBar, present = false, {}
 	for i, lane in ipairs(lanes) do
@@ -894,9 +858,10 @@ local function RebuildLane(lane, now, withdraw)
 end
 
 -- Every icon ahead of the now line goes through the card stack, and the
--- ready row's slots through their own pass; the front of a stack draws on
--- top of the icons it covers. Run whenever a lane was rebuilt.
-local stackItems, spareItems, slotMarks = {}, {}, {}
+-- parked ready marks through the ready stack; the front of a stack draws on
+-- top of the icons it covers, the ready stack over the card stack. Run
+-- whenever a lane was rebuilt.
+local stackItems, spareItems, parkedDescs, parkedMarks = {}, {}, {}, {}
 local function ByStack(a, b)
 	if a.x ~= b.x then
 		return a.x < b.x
@@ -912,9 +877,9 @@ local function StackMarks(now)
 		for j = 1, #used do
 			local mark = used[j]
 			local desc = mark.desc
-			if desc.slot then
+			if desc.parked then
 				readyCount = readyCount + 1
-				slotMarks[readyCount] = desc
+				parkedDescs[readyCount], parkedMarks[readyCount] = desc, mark
 			elseif desc.predicted and not desc.atNow and not desc.leaving then
 				local t, far = ResolveTime(desc, now)
 				if t then
@@ -922,7 +887,7 @@ local function StackMarks(now)
 					local item = stackItems[count] or remove(spareItems) or {}
 					stackItems[count] = item
 					item.desc, item.mark, item.t, item.far = desc, mark, desc.t + (desc.after or 0), far
-					item.x = Layout:TimeToOffset(t, now)
+					item.x = Layout:TimeToOffset(t, now) + (desc.endsBar and Layout.iconSize / 2 or 0)
 					item.fixed = desc.occupant or desc.onBar
 				end
 			end
@@ -935,15 +900,19 @@ local function StackMarks(now)
 	end
 	table.sort(stackItems, ByStack)
 	SingleLane.Stack(stackItems, count)
-	SingleLane.StackSlots(slotMarks, readyCount)
+	SingleLane.StackReady(parkedDescs, readyCount)
 	local base = markLayer:GetFrameLevel() + 1
 	for i = 1, count do
 		local item = stackItems[i]
-		local level = item.desc.front and base + 1 or nil
-		if item.mark.stackLevel ~= level then
-			item.mark.stackLevel = level
-			item.mark:SetFrameLevel(level or base)
-		end
+		Raise(item.mark, item.desc.front and base + 1 or nil, base)
+	end
+	-- The ready stack's front on top, each fold behind it.
+	for i = 1, readyCount do
+		local index = parkedMarks[i].desc.parkIndex
+		Raise(parkedMarks[i], index and base + 2 + readyCount - index or nil, base)
+	end
+	for i = readyCount + 1, #parkedMarks do
+		parkedMarks[i] = nil
 	end
 end
 
@@ -1036,8 +1005,8 @@ end
 local function Sweep()
 	Store:Prune(GetTime() - (Addon:GetWindow()) - STORE_MARGIN)
 	-- A cooldown that turned out long (or a lane that came or went)
-	-- renumbers the ready row's slots.
-	if SingleLane.SlotsChanged(Layout:Lanes()) then
+	-- renumbers the ready stack's lane order.
+	if SingleLane.NumberReady(Layout:Lanes()) then
 		layoutDirty = true
 	end
 	Renderer:UpdateVisibility()
@@ -1107,7 +1076,7 @@ end
 function Renderer:DebugLayout()
 	local out = {
 		string.format("skin %s, orientation %s, scale %.2f, pad %d", tostring(Layout.skin), tostring(Layout.orient.start), frame:GetEffectiveScale(), Layout.crossPad or 0),
-		string.format("bar %.0f px, %d ready slots (%s side), frame %.0f wide", Layout.trackExtent, Layout.slotCount, tostring(Layout.readyRowSide), Layout.frameWidth),
+		string.format("bar %.0f px, ready spells %s, frame %.0f wide", Layout.trackExtent, tostring(Layout.readySpells), Layout.width),
 	}
 	local function Describe(name, laneFrame)
 		local _, middle = laneFrame:GetCenter()

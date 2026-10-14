@@ -15,7 +15,7 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   casts, a tracked spell, or a tracked spell's engine-drawn overlay. Every
   subject shares one track, the **bar** (except engine-drawn lanes, which
   keep thin rows of their own under it), but each stays a lane in the code
-  and the docs. _Avoid_: row (the **ready row** is not a lane).
+  and the docs. _Avoid_: row (the **ready stack** is not a lane).
 - **mark** — a positioned glyph on a lane. A **happened mark** records an
   event that occurred; a **predicted mark** places an event expected to
   occur. A hand lane's marks are swing diamonds on the bar's edges (a
@@ -31,14 +31,14 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   and usable (resource and reactive conditions met) where the game reports
   usability readably in combat, off cooldown alone where it does not. The
   spell's icon, plain full color with no outline, filling the spell's
-  ready-row slot (a long cooldown shows none) — vivid because it is ready now, matching the game's own
+  place in the **ready stack** (a long cooldown shows none) — vivid because it is ready now, matching the game's own
   gray-while-on-cooldown icon language. Idle lanes do not collapse; they
   show the ready mark. The engine-drawn sink arrives here naturally when
   the secret remaining time hits zero, which is why the sink needs no
   hide-on-complete.
 - **unusable mark** — the mark a tracked spell shows while off cooldown but
   not usable (resource short, a reactive condition unmet, or the wrong
-  druid form or warrior stance): the spell's icon in its ready-row slot,
+  druid form or warrior stance): the spell's icon in the ready stack,
   tinted
   the way the game tints an unusable action button (blue when
   resource-short, grey otherwise). Exists only where the condition is
@@ -46,7 +46,7 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
 - **unknown-cooldown mark** — the mark a tracked spell shows while it is
   known to be cooling but the timeline does not know until when (never
   calibrated, or reloaded mid-cooldown in combat): the spell's icon in its
-  ready-row slot, desaturated, no outline. Held until a plain read settles it or
+  the ready stack, desaturated, no outline. Held until a plain read settles it or
   the spell's next completed cast proves it was ready.
 - **parked mark** — a hand lane's mark while its hand is parked: a dim,
   desaturated diamond on the now line. _Avoid_: ready mark (that
@@ -147,10 +147,11 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
 - **card stack** — how the bar shows icons closer than an icon's width:
   the front one (a fact first, else the soonest) at its place, the others
   peeking out behind it, three at most, then "+n".
-- **ready row** — the row of fixed **slots** under the bar, one
-  per rotation ability, filled while the spell is ready (a cooling spell's
-  slot is an empty outline).
-- **long cooldown** — a tracked spell kept out of the ready row: a cooldown
+- **ready stack** — the ready, unusable and unknown-cooldown marks parked
+  on the bar at the now line, three at most, each behind the
+  front peeking out toward the future along the bar (ADR-0009). _Avoid_: ready row (the fixed
+  slots under the bar it replaced).
+- **long cooldown** — a tracked spell kept out of the ready stack: a cooldown
   of 30 s or more by default, or tagged in class data or flagged in the spell
   window.
   _Avoid_: major cooldown (implies a judgement about the spell's value).
@@ -165,7 +166,7 @@ reset, parry haste; secret, plain, restriction flip) is canonical in
   "lane window", "lane list".
 - **Edit Mode panel** — the settings panel that opens beside the timeline
   when it is clicked in Edit Mode: scale, opacity, length, bar height,
-  visibility, orientation, ready row side (ADR-0008).
+  visibility, orientation, ready spells (ADR-0008, ADR-0009).
 - **shipped defaults / class layer / player layer** — the three settings
   layers, lowest to highest. Each stores only what was changed at its level;
   an unset key falls through to the layer below (ADR-0002). _Avoid_:

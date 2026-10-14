@@ -46,7 +46,7 @@
 --   shape      adds "diamond" (radius, hollow, color, alpha, glyph "pause")
 --   size       an icon's size in pixels (default Layout.iconSize, filling the bar)
 --   across     the offset across the track, plus the shake
---   along      a fixed place along the axis (a ready-row slot), not an instant
+--   along      a fixed place along the axis (a place in the ready stack), not an instant
 --   alpha      the widget's base alpha (default 1, or the dim alpha)
 --   fade       a happened mark: fades over the past window
 --   highlight  flashes once as it comes within 1.5 s of the now line
@@ -55,8 +55,10 @@
 --   art, reveal    a bar's art (an ATLAS key, false for plain) and whether
 --              its fill is revealed up to now (a cast's)
 --   farAlpha   a mark's alpha while far; it brightens to 1 on the flash
---   slot       a ready-row slot's number; shape "outline" is a cooling
---              spell's empty slot
+--   parked, lane    a ready mark in the ready stack and its lane (whose
+--              readyOrder is its place in lane order); the stack pass
+--              (SingleLane.StackReady) sets its place and `parkIndex` (1 the
+--              front, nil when hidden past the third)
 --   occupant, onBar    the in-flight cast's icon or the next Auto Shot's, and
 --              a queued ability's: a fact, the front of its card stack
 -- Happened marks come from the store through Layout.CollectHappened: an entry
@@ -189,22 +191,12 @@ function Layout:Compute()
 	self.padEnd = iconSize / 2 + self.chevronSize + 2
 	self.pxPerSec = (self.width - self.padStart - self.padEnd) / (past + future)
 	self.nowX = self.padStart + past * self.pxPerSec
-	-- The ready row's slots, under the bar; on the past side the frame widens
-	-- to fit them.
-	self.readyRowSide = Addon:GetSetting("readyRowSide")
-	self.slotCount = SingleLane.AssignSlots(lanes)
-	local extra = 0
-	if self.readyRowSide == "past" then
-		extra = max(SingleLane.RowSpan(self.slotCount) - self.nowX, 0)
-	end
-	self.padStart, self.nowX, self.frameWidth = self.padStart + extra, self.nowX + extra, self.width + extra
-	-- Widened for the ready row, the bar starts before the past window: bars
-	-- (a cast, the GCD) run on to its start rather than stopping short, and
-	-- every happened element fades over all the past the bar shows, at one
-	-- rate (the renderer's FadeFactor), so it is gone just as it reaches the
-	-- bar's start.
-	self.margin = extra / self.pxPerSec
-	self.invPast = 1 / max(past + self.margin, 0.1)
+	-- Every happened element fades over the past window, at one rate (the
+	-- renderer's FadeFactor), so it is gone just as it reaches the bar's start.
+	self.invPast = 1 / max(past, 0.1)
+	-- The ready stack on the now line (ADR-0009): which spells park in it.
+	self.readySpells = Addon:GetSetting("readySpells")
+	SingleLane.NumberReady(lanes, true)
 	-- The pad across the frame: the now line's reach past the bar (and the
 	-- Native pip, where the cast bar's spark is missing).
 	self.crossPad = max(Addon.Skin.CrossPad(), SingleLane.BarPad())
@@ -217,8 +209,7 @@ end
 
 -- Offsets across the axis from the frame's lane-start edge (top, or left
 -- when vertical): the bar's (`barOffset`, `trackExtent` tall, shared by
--- every lane but the sink lanes), what hangs under it (the ready row's strip,
--- the seconds scale), then each sink lane's row (`laneOffsets` and
+-- every lane but the sink lanes), what hangs under it (the seconds scale), then each sink lane's row (`laneOffsets` and
 -- `laneExtents`, by lane index), and the lanes' combined extent.
 function Layout:ComputeRows()
 	local lanes, spacing, SingleLane = lanes, self.spacing, Addon.SingleLane
@@ -291,10 +282,9 @@ function Layout:OrientTexCoord(texture)
 end
 
 -- The visible window: anything ending before the cull edge has scrolled
--- out (the past window, plus the bar's widening for the ready row); the far
--- edge is the end of the future window.
+-- out of the past window; the far edge is the end of the future window.
 function Layout:CullEdge(now)
-	return now - self.past - self.margin
+	return now - self.past
 end
 
 function Layout:FarEdge(now)

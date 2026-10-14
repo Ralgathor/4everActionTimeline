@@ -18,6 +18,9 @@ local WHITE = Util.WHITE
 local POP_ATLAS = "cast_standard_pipglow" -- shared with 4everSwingTimer
 local POP_TIME = 0.3
 local RING_TIME = 0.8
+-- A return with no place in the ready stack: its icon stays on the now line
+-- this long, fading, under the ring (ADR-0009).
+local LINGER_TIME = 0.5
 local RING_COLOR = { 1.0, 0.93, 0.75 } -- also the highlight's
 -- The highlight (the urgency cue): the glow rises and falls once
 -- around a mark - Blizzard's HighlightGlow timing (0 to 0.7 and back over
@@ -42,7 +45,7 @@ local SingleLane = Addon.SingleLane
 local layer
 local live = {}
 local shakeStrength = 1
-local freePops, freeStreaks = {}, {}
+local freePops, freeStreaks, freeIcons = {}, {}, {}
 
 local function NewPop()
 	local texture = layer:CreateTexture(nil, "OVERLAY")
@@ -53,6 +56,14 @@ local function NewPop()
 	end
 	texture:SetBlendMode("ADD")
 	return texture
+end
+
+-- A lingering icon: a mark's icon art (Skin), on a frame that fades whole.
+local function NewIcon()
+	local icon = CreateFrame("Frame", nil, layer)
+	icon.art = Addon.Skin.CreateIconArt(icon)
+	icon.art.icon:SetPoint("CENTER")
+	return icon
 end
 
 local function NewStreak()
@@ -94,12 +105,26 @@ function Effects:Highlight(widget, size)
 	end
 end
 
--- A cooldown came back: a ring on its ready-row slot, or on the now line
--- for a long cooldown (SingleLane.RingPosition).
+-- A cooldown came back: a ring on its place in the ready stack, or on the
+-- now line (SingleLane.RingPosition); with no place in the stack, its icon
+-- lingers on the now line under the ring.
 function Effects:Ring(lane)
-	if layer then
-		Flash({ kind = "ring", lane = lane, duration = RING_TIME }, RING_COLOR)
+	if not layer then
+		return
 	end
+	if lane.icon and lane.frame and not SingleLane.HasPlace(lane) then
+		local icon = remove(freeIcons) or NewIcon()
+		local size = Layout.iconSize
+		icon:SetSize(size, size)
+		Addon.Skin.StyleIcon(icon.art, size)
+		Addon.Skin.SetBorder(icon.art)
+		icon.art.icon:SetTexture(lane.icon)
+		local along, across = SingleLane.RingPosition(lane)
+		icon:SetPoint("CENTER", lane.frame, Layout.orient.start, Layout:Offsets(along, across))
+		icon:Show()
+		live[#live + 1] = { kind = "linger", lane = lane, texture = icon, pool = freeIcons, start = GetTime(), duration = LINGER_TIME }
+	end
+	Flash({ kind = "ring", lane = lane, duration = RING_TIME }, RING_COLOR)
 end
 
 -- A fading streak from the old instant to the new one.
@@ -111,7 +136,7 @@ function Effects:Streak(lane, from, to, color)
 	-- Bright at the new instant: the end-facing side when it is the later one.
 	Addon.Skin.Gradient(texture, color[1], color[2], color[3], to > from)
 	texture:Show()
-	live[#live + 1] = { kind = "streak", lane = lane, from = from, to = to, texture = texture, start = GetTime(), duration = STREAK_TIME }
+	live[#live + 1] = { kind = "streak", lane = lane, from = from, to = to, texture = texture, pool = freeStreaks, start = GetTime(), duration = STREAK_TIME }
 end
 
 -- A corrected prediction: the streak from the old instant to the new one,
@@ -144,7 +169,7 @@ local function Release(effect)
 	local texture = effect.texture
 	texture:Hide()
 	texture:ClearAllPoints()
-	local pool = effect.kind == "streak" and freeStreaks or freePops
+	local pool = effect.pool or freePops
 	pool[#pool + 1] = texture
 end
 
@@ -168,6 +193,8 @@ function Effects:Place(now)
 				local size = Layout.iconSize * (0.9 + 1.2 * progress)
 				texture:SetSize(size, size)
 				texture:SetPoint("CENTER", laneFrame, Layout.orient.start, Layout:Offsets(along, ringAcross))
+			elseif effect.kind == "linger" then
+				-- Placed once (Effects:Ring); it only fades.
 			else
 				-- On the hand's edge of the bar, where its marks are.
 				local across = SingleLane.Across(effect.lane)

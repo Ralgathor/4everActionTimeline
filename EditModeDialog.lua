@@ -59,8 +59,8 @@ local SETTINGS = {
 	{ key = "orientation", type = "dropdown", name = "Orientation", relabels = true, options = {
 		{ "horizontal", "Horizontal" }, { "horizontalFlipped", "Horizontal, flipped" },
 		{ "vertical", "Vertical" }, { "verticalFlipped", "Vertical, flipped" } } },
-	{ key = "readyRowSide", type = "dropdown", name = "Ready row", options = {
-		{ "past", "Past side" }, { "future", "Future side" } } },
+	{ key = "readySpells", type = "dropdown", name = "Ready spells", options = {
+		{ "stack", "Stack on the now line" }, { "none", "None" } } },
 	{ key = "skin", type = "dropdown", name = "Skin", options = {
 		{ "native", "Native" }, { "flat", "Flat" } } },
 	{ key = "barGcd", type = "dropdown", name = "GCD", options = {

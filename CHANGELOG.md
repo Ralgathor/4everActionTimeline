@@ -31,10 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its edge.
 - Spell cooldowns: each tracked spell's icon rides the bar toward the now
   line and flashes once when it is one global cooldown away. Spells you can
-  press now sit in a row of fixed slots under the bar, tinted blue when you
-  lack the resource and grey when unusable; a slot stays empty while its
-  spell cools down. Long cooldowns (30 s or more) skip the row and flash a
-  ring on the now line when they return. Icons that would overlap stack,
+  press now stay on the now line, stacked: the ones you can use in front,
+  then those tinted blue (you lack the resource) or grey (unusable), three
+  at a time. Or turn the stack off and let the
+  Cooldown Manager show them: a returning spell then flashes on the now
+  line. Long cooldowns (30 s or more) never stack and flash on the now line
+  when they return. Icons that would overlap stack,
   three at a time, with "+n" for the rest; spells sharing a cooldown show
   as one icon with a small link mark.
 - Cooldowns are learned: cast each tracked spell once out of combat.
@@ -50,9 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a right-click menu for a manual cooldown, a search box, and Revert. For
   your whole class or this character only.
 - Edit Mode: the timeline moves like Blizzard's own frames (their
-  highlight, snapping), keeps a position for each Edit
+  highlight, snapping to other frames and to the grid, with the red snap lines while you drag), keeps a position for each Edit
   Mode layout, and a click opens its panel: scale, opacity, length, bar
-  height, past and future window, engine lane gap, when it shows, four orientations, the ready row side, the skin,
+  height, past and future window, engine lane gap, when it shows, four orientations, the ready spells, the skin,
   the global cooldown style and the seconds scale.
 - Settings (Options > AddOns, or `/actiontimeline options`): the global
   cooldown length, which swing and cast lanes to show, and the engine lane

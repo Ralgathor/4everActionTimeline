@@ -10,7 +10,7 @@ local LIB_MAJOR = "LibClassicSwingTimerAPI"
 -- The embedded pin is the library's v2.2.0 stable release (LibStub MINOR 37).
 local REQUIRED_LIB_MINOR = 37
 -- Bumped with every saved-variable shape change; Migrate() upgrades older data.
-local SCHEMA_VERSION = 2
+local SCHEMA_VERSION = 3
 
 FourEverActionTimeline = {}
 local Addon = FourEverActionTimeline
@@ -44,6 +44,14 @@ local function Migrate(db)
 				player.positions = player.positions or {}
 				player.positions.default = player.position
 				player.position = nil
+			end
+		end
+	end
+	-- Schema 3: the ready row's side gave way to the ready stack (ADR-0009).
+	if (db.schemaVersion or 0) < 3 then
+		for _, player in pairs(db.players or {}) do
+			if player.settings then
+				player.settings.readyRowSide = nil
 			end
 		end
 	end

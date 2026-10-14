@@ -26,7 +26,7 @@ local ICON_CROP = Addon.Util.ICON_CROP
 
 local SECTIONS = {
 	{ key = "timeline", title = "Timeline", hint = "Spells that ride the bar toward the now line." },
-	{ key = "long", title = "Long cooldowns", hint = "No slot in the ready row; a ring flashes on the now line when one returns." },
+	{ key = "long", title = "Long cooldowns", hint = "Not in the ready stack; its icon flashes on the now line when it returns." },
 	{ key = "engine", title = "Engine lanes", hint = "The game draws the spell's icon in a thin row under the bar, exact even in combat." },
 	{ key = "hidden", title = "Not displayed", hint = "Not on the timeline." },
 }
@@ -58,8 +58,8 @@ local function Scan()
 end
 
 -- The section a spell is in at `layer`: Not displayed when off, Engine lanes
--- with the engine opt-in (such a spell keeps its marks and ready slot on the
--- bar; only its future mark moves to the engine row), Long cooldowns when
+-- with the engine opt-in (such a spell keeps its marks and its place in the
+-- ready stack on the bar; only its future mark moves to the engine row), Long cooldowns when
 -- flagged or long by itself, else Timeline.
 function LaneWindow.SectionOf(base, layer, id)
 	if not Addon:GetLaneValue(base, "enabled", layer) then

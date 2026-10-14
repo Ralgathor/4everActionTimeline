@@ -43,13 +43,10 @@ local Skin = {
 		-- The border: Blizzard's swing timer's, drawn to stretch over a bar of
 		-- any size (4everSwingTimer stretches it over its bars).
 		swingFrame = "ui-swingtimerbar-frame",
-		-- The box behind the bar holding the ready row: the cast bar's name box.
-		castTextbox = "ui-castingbar-textbox",
 		castBackground = "ui-castingbar-background",
 		castFill = "ui-castingbar-filling-standard",
 		castChannel = "ui-castingbar-filling-channel",
 		castPip = "ui-castingbar-pip",
-		castNeutral = "ui-castingbar-uninterruptable", -- grey: tinted for Auto Shot
 		-- The glow trailing the cast bar's spark, and a channel's shadow there.
 		castGlow = "cast_standard_pipglow",
 		channelShadow = "cast_channel_pipshadow",
@@ -62,6 +59,22 @@ local ATLAS = Skin.ATLAS
 -- swing timer's border. The bar's inset and its art follow this one check.
 function Skin.NativeBar()
 	return Skin.Native("swingFrame", "castBackground")
+end
+
+-- Native's bar art is not even across: the swing timer border's dark band
+-- is thicker on its lane-start side and the cast bar background shades
+-- toward it, so its lit middle sits about a pixel off the geometric one (a
+-- screenshot, build 70338). An icon smaller than the bar sits on the lit
+-- middle; one filling the bar needs no nudge.
+local NATIVE_MIDDLE_NUDGE = 1
+
+-- The bar art's lit middle, across from its geometric one (`scale`: the bar
+-- height's, SingleLane.Scale).
+function Skin.BarMiddle(scale)
+	if not Skin.NativeBar() then
+		return 0
+	end
+	return Layout.orient.crossSign * NATIVE_MIDDLE_NUDGE * scale
 end
 
 -- True when the Native skin is on and every named atlas exists.
@@ -120,8 +133,7 @@ end
 -- end-facing edge (Blizzard anchors it by "END"), so the divider anchors
 -- that edge just past the now instant, the line itself on it, and centers
 -- the pip on the line; the others are centered.
--- Flat: a stepped diamond on the now line's lane-start end (and, with no
--- ready row under the bar, on its other end too), five
+-- Flat: a stepped diamond on each end of the now line, five
 -- bars 1-3-5-3-1 line widths wide and one line width deep (as wide as it is
 -- tall). Odd multiples of the line width, every bar snaps to the screen
 -- pixels exactly as the line does, so it sits square on the line at any
@@ -196,7 +208,7 @@ function Skin.StyleNowLine(nowLine, pip, frame)
 	pip:SetShown(native)
 	local flat = not native and not spark
 	StylePipSteps(pip, "steps", nowLine, point, thickness, flat)
-	StylePipSteps(pip, "lowSteps", nowLine, orient.crossEnd, thickness, flat and Layout.slotCount == 0)
+	StylePipSteps(pip, "lowSteps", nowLine, orient.crossEnd, thickness, flat)
 end
 
 -- ---------------------------------------------------------------------------

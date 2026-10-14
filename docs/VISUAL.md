@@ -49,8 +49,8 @@ a section says otherwise:
 ### Skins
 
 - **Native skin (default)** — Blizzard's cast bar family: its background,
-  fills, spark and glow, the swing timer's border, the cast bar's name box
-  behind the ready row, the Cooldown Manager bar art for the GCD (Layouts).
+  fills, spark and glow, the swing timer's border, the Cooldown Manager bar
+  art for the GCD (Layouts).
   The bar reads as the cast bar and swing timer players already watch.
   (Until ADR-0007 it was the Encounter Timeline + Cooldown Manager family:
   the `combattimeline-*` track art and Cooldown Manager–framed icons; the
@@ -69,7 +69,7 @@ a section says otherwise:
 
 - Three choices: **horizontal** (default: past left, future right),
   **horizontal flipped** (future left), and **vertical** (with its own
-  flip). The bar, its marks, the ready row, edge clamp and the sink follow
+  flip). The bar, its marks, the ready stack, edge clamp and the sink follow
   the orientation.
 - The sink stays possible in every orientation: `StatusBar` supports
   `SetOrientation("VERTICAL")` and `SetReverseFill`, so the fill — and the
@@ -95,21 +95,21 @@ a section says otherwise:
   | Element | Value |
   |---|---|
   | Length | the Length setting, default 700 px (10 s at about 58 px/s); linear |
-  | Frame | the bar height. Native: the cast bar's background as the body under Blizzard's swing timer border, stretched over the bar whole (drawn for a bar of any size, where the cast bar's frame is drawn for one), casts and channels filling it with the cast bar's own fills, the art at its own proportions from the cast's start (a short cast shows its first part, cropped; a long one stretches it) and revealed up to now as Blizzard's cast bar reveals it, Auto Shot with its grey fill tinted teal, the GCD the Cooldown Manager bar art tinted blue. Flat: a body dark at 88 %, a 1 px light border at 38 % over a dark outline, cut where the now line and the seconds scale cross it |
-  | Ready row | under the bar, as Blizzard's cast bar shows the spell's name in the box under its bar: a box behind the bar reaching 16 px below it, the bar's width less 2 px at each end so it meets the inside of the border's rounded ends (Native: the cast bar's name box, `ui-castingbar-textbox`; Flat: a dark box at 60 %), the ready row in it with padding (slots of 12, 4 apart, the nearest 12 from the now line, 2 px clear above and below, at least 5 px from the box's end - the frame and bar widen for a long row, bars such as a cast running on to the bar's start and every happened element fading over all the past the bar shows, at one rate), a cooling slot an empty outline (1 px, 30 %). (First built as a four-slot cap inside the bar at its start; moved under it, 2026-10-13, giving the bar its whole length back.) |
+  | Frame | the bar height. Native: the cast bar's background as the body under Blizzard's swing timer border, stretched over the bar whole (drawn for a bar of any size, where the cast bar's frame is drawn for one), casts and channels filling it with the cast bar's own fills, the art at its own proportions from the cast's start (a short cast shows its first part, cropped; a long one stretches it) and revealed up to now as Blizzard's cast bar reveals it, Auto Shot a plain teal fill (Blizzard's grey uninterruptible fill, tinted teal, vanished into the grey body ahead of the now line), the GCD the Cooldown Manager bar art tinted blue. Flat: a body dark at 88 %, a 1 px light border at 38 % over a dark outline, cut where the now line and the seconds scale cross it |
+  | Ready stack | ready spells park on the bar on the now line (ADR-0009): icons at 75 % of the bar's (18 px Flat, 14 px Native at the default height, their edges a whole number of screen pixels in from the bar's edges, so they round the same way; Native nudges them 1 px toward the bar's under side, onto the lit middle of its art, whose dark border band is thicker and whose background shades on the lane-start side), so the now line shows above and below them; each one behind the front peeking out 5 px further toward the future, along the bar, the front centred on the now line (an accordion, the card stack's peek; first tried folding down across the bar too, which did not read); usable spells first, then unusable (tinted), then unknown cooldowns (desaturated), lane order inside each; three show, the rest hidden (no "+n"); the front draws over the folds. No outline for a cooling spell; the frame neither widens nor grows for it. (First a four-slot cap inside the bar, then a row of 12 px slots under the bar in the cast bar's name box, 2026-10-13; replaced by the stack the same day.) |
   | Icons | filling the bar inside its border, plain in both skins (edge-cropped, a 1 px dark border), as Blizzard's cast bar shows its icon; no Cooldown Manager frame. Flat: 24 inside its 1 px border. Native: 18, inside the swing timer border by what 4everSwingTimer keeps clear inside it (4 px across); casts and the GCD tint keep the same inset |
-  | Casts | the bar's full height inside the border: elapsed gold 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 % (Flat; Native: the cast bar's own fills, untinted); a channel green 0.55 / 0.82 / 0.30, still to run 0.58 / 0.66 / 0.50; the icon at the end |
+  | Casts | the bar's full height inside the border: elapsed gold 0.88 / 0.67 / 0.35 at 95 %, still to run 0.67 / 0.63 / 0.57 at 60 % (Flat; Native: the cast bar's own fills, untinted); a channel green 0.55 / 0.82 / 0.30, still to run 0.58 / 0.66 / 0.50; the icon past the end, its near edge on it (left, or right when flipped, bottom or top when vertical; an Auto Shot icon the same; centred on its instant when pinned at the far edge, and an instant with no bar centred on its moment) |
   | GCD | Settings: GCD - **Tint** (default; Native: the Cooldown Manager bar art tinted pale blue 0.67 / 0.78 / 1.0, 60 % still to run, 30 % elapsed fading; Flat: the same tint plain - a fainter band vanished over the bar's grey body) or **Strip** (4 px inside the bottom edge, 75 % / 30 %) |
   | Swing diamonds | half diagonal 5, on a dark outline 1.5 px out, on the frame's edges: main hand (and ranged) on the top edge, off hand on the bottom edge; main hand 0.91 / 0.93 / 0.96, off hand 0.79 / 0.69 / 0.54, ranged hollow 0.62 / 0.86 / 0.66; next landing 75 % while far, then full with one flash; one chain diamond (half diagonal 4 at 55 %), landed ones fading, a parked hand dim (50 %) on the now line; grey at 80 % of the color's luminance |
   | Queued ability | its icon in the bar at the next landing; the diamond stays on the edge; the landed swing leaves the icon in the bar, fading |
   | Returning cooldowns | icons only, desaturated, 60 % while far (the Encounter Timeline's Long-track alpha); beyond the window they park at the far edge, each further one tucked 5 px to the left (a stack's peek), one chevron for all |
   | Card stack | every icon ahead of the now line (a cast's end, a queued ability, Auto Shot, the cooldowns): icons closer than an icon's width group; facts in front of predictions, else the soonest; the others keep their own place when that already shows them, else peek out 5 px further each (about 0.08 s, too little to mislead); three show, then "+n" |
-  | Linked set | one icon with a link mark (a small corner badge; no link atlas exists) on the bar; in the ready row a slot per spell, each wearing the link mark |
-  | Now line | Native: the cast bar's spark (`ui-castingbar-pip`, additive) across the bar and 6 px beyond, no pip; the border art is not cut. While a cast runs through it, the glow Blizzard's cast bar trails behind its spark (a channel: its shadow), its height scaled to the bar, its width Blizzard's 37 px (the casts here are shorter than its cast bar), masked to the cast's elapsed fill, so it never shows outside the art. Flat: 2 px warm 0.91 / 0.85 / 0.66 at 75 %, 6 px beyond the frame on both sides, a stepped diamond (1-3-5-3-1 line widths, as wide as tall) on its top end, and on its bottom end too while no ready row sits under the bar; the border cut 8 px around it, so the frame itself marks now |
+  | Linked set | one icon with a link mark (a small corner badge; no link atlas exists) on the bar; in the ready stack each spell wearing the link mark |
+  | Now line | Native: the cast bar's spark (`ui-castingbar-pip`, additive) across the bar and 6 px beyond, no pip; the border art is not cut. While a cast runs through it, the glow Blizzard's cast bar trails behind its spark (a channel: its shadow), its height scaled to the bar, its width Blizzard's 37 px (the casts here are shorter than its cast bar), masked to the cast's elapsed fill, so it never shows outside the art. Flat: 2 px warm 0.91 / 0.85 / 0.66 at 75 %, 6 px beyond the frame on both sides, a stepped diamond (1-3-5-3-1 line widths, as wide as tall) on each end; the border cut 8 px around it, so the frame itself marks now |
   | Seconds scale | Settings: Seconds scale, off by default: the border cut 4 px at 1, 3 and 5 s either side on both edges, a 5 px tick under the frame, the seconds under the future ticks |
   | Urgency | the highlight: a step from the far alpha to full and one flash at 1.5 s (Urgency) |
   | Auto Shot | the Auto Shot cast (below): the windup fills the bar's height in teal, ending at the Auto Shot icon |
-  | Engine-drawn lanes | thin rows (18 px, 16 px icons) under the ready row |
+  | Engine-drawn lanes | thin rows (18 px, 16 px icons) under the bar |
 
 - Hands. Filled for melee, hollow for ranged, so shape tells them apart
   first. Without an off hand the bottom edge stays empty: the frame never
@@ -147,26 +147,23 @@ a section says otherwise:
 - Returning cooldowns: an overdue icon pins on the now line until the
   engine confirms the spell is ready; past the far edge the edge clamp and
   chevron apply.
-- Ready row: each rotation ability has a fixed slot in lane-window order; a
-  slot shows a faint empty outline while its spell cools down and fills
-  when it is ready, so the row never reorders or changes width. The slots
-  keep the state tints (blue resource-short, grey unusable, desaturated
-  unknown cooldown), so the row reads "pressable now". A return flashes a
-  ring on the slot. The row is the Encounter Timeline's sorted-track idea -
-  fixed slots, not time positions - applied to what is ready.
-- Ready row side: a Settings dropdown, **Past side** (default) or **Future
-  side**. Past side keeps a returning cooldown moving one way (it crosses
-  the now line into its slot) and leaves the future side to what is
-  arriving; the row's width follows its slot count, not the past window -
-  the frame widens on its past side to fit the slots. Future side starts
-  the slots at the now line, for players who keep their eyes ahead of it.
-  Either side follows the orientation.
+- Ready stack (ADR-0009): a returning cooldown stops on the now line and
+  stays, so its motion never breaks: the icon arrives and parks. The stack
+  keeps the state tints (blue resource-short, grey unusable, desaturated
+  unknown cooldown) and sorts by them, so its front is always the first
+  pressable spell in the player's own lane order - never a recommendation,
+  and it wears no highlight. A return flashes a ring on its place in the
+  stack. It is the Encounter Timeline's Queued track (sorted, capped, held
+  at the end of the line) moved onto the now line.
+- Ready spells: an Edit Mode panel dropdown, **Stack on the now line**
+  (default) or **None**. None draws no ready marks (Blizzard's Cooldown
+  Manager shows them); a returning cooldown's icon stays on the now line
+  for 0.5 s, fading, under the ring.
 - Long cooldowns: a spell whose cooldown is not yet known (uncalibrated, no
-  class-data tag) counts as a rotation ability and keeps a slot until its
-  cooldown is learned - the one case where the ready row changes width.
-  Long cooldowns get no slot; while cooling they ride the bar like any
-  returning cooldown; on their return a ring flashes on the now line and
-  the icon leaves the bar. The Long flag in the lane window only forces a
+  class-data tag) counts as a rotation ability and parks until its cooldown
+  is learned. Long cooldowns never park; while cooling they ride the bar
+  like any returning cooldown; on their return the icon stays on the now
+  line for 0.5 s, fading, under the ring, then leaves the bar. The Long flag in the lane window only forces a
   spell long: it cannot make a cooldown of 30 s or more count as rotation.
 - GCD: behind every mark; where the GCD still has to run it is at its full
   strength, the elapsed part dimmer and fading with age, so idle gaps
@@ -180,14 +177,14 @@ a section says otherwise:
   the affected diamond or icon, across the bar.
 - Engine-drawn lanes: the sink rules hold - the spell's predicted mark
   leaves the bar while its sink is on, the pinned icon shows no chevron,
-  the countdown text stays optional. Its ready-row slot (or, for a long
+  the countdown text stays optional. Its place in the ready stack (or, for a long
   cooldown, the now-line ring) still follows the plain off-cooldown read.
 - Edit Mode panel: one past and future window (default 1.5 s / 10 s) and one
   length. The bar height setting sizes the bar and everything on it scales
   with it - the pixel sizes above are those at the default height. Engine
   lane spacing is the gap above each engine-drawn row.
 - Orientation: all four. The main hand takes the lane-start edge (top when
-  horizontal, left when vertical); the ready row, then the engine-drawn
+  horizontal, left when vertical); the engine-drawn
   rows, stack on the other side. A flip mirrors only the time axis. Text
   (the "+n" and the scale's seconds) stays upright.
 - As built: the card stack's offsets are fixed at each rebuild. The past
@@ -217,7 +214,7 @@ a section says otherwise:
 ### Lanes and tracks
 
 - Every lane but the sink lanes draws on the one bar (Layouts); the sink
-  lanes keep a thin row each under the ready row, in lane order.
+  lanes keep a thin row each under the bar, in lane order.
 - The bar has no track line: the frame and its border carry the time axis.
   Its seconds scale (optional) cuts the border at 1, 3 and 5 s either side
   of the now line - Blizzard's line breaks moved onto the frame
@@ -245,8 +242,7 @@ a section says otherwise:
   translations visually smoother": at the default length a mark moves about
   one pixel per frame, and a snapped one steps. Every texture that scrolls -
   the icon art, the diamonds, ticks, bars, the chevron - is made
-  by `Util.MovingTexture` (unsnapped); a ready-row slot's outline stays
-  snapped.
+  by `Util.MovingTexture` (unsnapped).
 - The thin still lines (the now line) are unsnapped too,
   because a snapped 1 px line was drawn or dropped depending on where it
   fell between pixels (build 70235). With line widths rounded to whole
@@ -538,7 +534,7 @@ is never desaturated.
   missing.
 - Clicking it opens the settings panel under it (over it when there is no
   room): Scale (50–200 %), Opacity (10–100 %), Length (Narrow…Wide, Short…Tall
-  when vertical), Bar height (Short…Tall), Visible, Orientation, Ready row,
+  when vertical), Bar height (Short…Tall), Visible, Orientation, Ready spells,
   and the buttons Reset position and Advanced Combat Timeline Settings (the
   spell window, as the Cooldown Manager's "Advanced Cooldown Settings"), with a line pointing to
   `/actiontimeline options`. It closes

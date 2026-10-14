@@ -157,8 +157,8 @@ local function Duration(lane)
 	return DurationOf(lane.base, lane.id)
 end
 
--- A long cooldown (no ready-row slot, a ring on the now line when
--- it returns): flagged in the lane window, tagged in the class data, or a
+-- A long cooldown (kept out of the ready stack; its icon lingers on the now
+-- line when it returns): flagged in the lane window, tagged in the class data, or a
 -- known cooldown of 30 s or more. A spell whose cooldown is not known yet
 -- counts as a rotation ability.
 local LONG_COOLDOWN = 30

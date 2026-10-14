@@ -32,11 +32,9 @@ Manager bars of the timeline's Bars view):
 | `ui-castingbar-background` | atlas | probed (H1) | The bar's body. |
 | `ui-swingtimerbar-frame` | atlas | shared | The border, Blizzard's swing timer's, stretched over the bar whole (as 4everSwingTimer stretches it over its configurable bars): drawn for a bar of any size. It cannot be cut, so the now line crosses it. |
 | `ui-castingbar-filling-standard` / `-filling-channel` | atlas | probed (H1) | A cast's and a channel's fill, in their own colors. Filling the bar's height, at its own proportions from the cast's start - a short cast shows its first part, cropped; a cast longer than the art stretches it - and revealed up to now as Blizzard's cast bar reveals its fill (drawn from the atlas's file, cropped by coordinates); the part still to run shows the rest of the art, faint. (Squeezed into the elapsed part it rescaled every frame and read oddly; tiling and its own height were tried, 2026-10-12.) |
-| `ui-castingbar-uninterruptable` | atlas | source, not yet seen in game | The Auto Shot windup's fill: grey art, tinted teal. Missing, the windup is plain teal. |
 | `ui-castingbar-pip` | atlas | probed (H1) | The now line: the cast bar's spark, `ADD`. |
-| `cast_standard_pipglow` | atlas | shared | While a cast or the Auto Shot windup runs through the now line: the glow Blizzard's cast bar trails behind its spark (37 x 12 on an 11 px bar, its end 2 px past the spark, `ADD`), scaled to the bar. |
+| `cast_standard_pipglow` | atlas | shared | While a cast runs through the now line (not the Auto Shot windup, a plain fill): the glow Blizzard's cast bar trails behind its spark (37 x 12 on an 11 px bar, its end 2 px past the spark, `ADD`), scaled to the bar. |
 | `cast_channel_pipshadow` | atlas | source, not yet seen in game | A channel's shadow at the spark instead (11 x 11, `BLEND`); missing, a channel shows none. |
-| `ui-castingbar-textbox` | atlas | source, not yet seen in game | The box behind the bar reaching down over the ready row, as Blizzard's cast bar shows the spell's name. Missing, a plain dark box. |
 | `UI-HUD-CoolDownManager-Bar` | atlas | source, seen in game (probe 14) | The GCD tint, tinted pale blue. |
 
 ## Native skin — fallbacks and glyphs
@@ -52,13 +50,13 @@ Manager bars of the timeline's Bars view):
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); the return ring on a ready-row slot or the now line, and the highlight flash, pale (`ADD`). |
+| `cast_standard_pipglow` | atlas | shared | Reposition pop, tinted teal / amber / red (`ADD`); the return ring on the ready stack or the now line, and the highlight flash, pale (`ADD`). |
 
 ## Flat skin
 
 | Asset | Kind | Status | Use |
 |---|---|---|---|
-| `Interface\Buttons\WHITE8X8` | path | shared | The bar's body, border and fills, the ready row's box, the now line and its steps, icon borders, the GCD (strip in both skins), the scale's ticks, the link badge, the correction streak. |
+| `Interface\Buttons\WHITE8X8` | path | shared | The bar's body, border and fills, the now line and its steps, icon borders, the GCD (strip in both skins), the scale's ticks, the link badge, the correction streak. |
 
 Not atlases:
 

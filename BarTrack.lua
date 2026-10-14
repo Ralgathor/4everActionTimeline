@@ -2,8 +2,7 @@
 -- track; ADR-0006): SingleLane places the marks, this file draws the bar
 -- around them - a dark body, a light border over a dark outline, cut
 -- where the now line crosses it (and at 1, 3 and 5 s with the seconds
--- scale), the box behind it holding the ready row under it (the cast bar's
--- name box), the scale's ticks and seconds. Still art, laid out on every
+-- scale), the scale's ticks and seconds. Still art, laid out on every
 -- layout pass (nothing in it moves between them).
 
 local Addon = FourEverActionTimeline
@@ -16,8 +15,6 @@ local WHITE = { 1, 1, 1, 1 } -- art as drawn
 local BODY_COLOR = { 0.05, 0.06, 0.07, 0.88 }
 local OUTLINE_COLOR = { 0, 0, 0, 0.7 }
 local BORDER_COLOR = { 0.9, 0.91, 0.93, 0.38 }
-local ROW_BOX_COLOR = { 0, 0, 0, 0.6 } -- Flat, or without the name box's art
-local BOX_INSET = 2 -- the box's ends, in from the bar's: the inside of the border's rounded ends
 -- At bar height 26 (they scale with it).
 local NOW_GAP, SCALE_GAP = 8, 4 -- the border's cuts
 local TICK_OFFSET, TICK_LENGTH, TICK_ALPHA = 3, 5, 0.6
@@ -121,7 +118,7 @@ end
 
 function BarTrack:LayoutBar(trackFrame)
 	local k = Addon.SingleLane.Scale()
-	local extent, length = Layout.trackExtent, Layout.frameWidth
+	local extent, length = Layout.trackExtent, Layout.width
 	local line = Util.PixelSize(owner, 1)
 	local cross = Layout.orient.crossSign
 	local scale = Addon:GetSetting("barScale")
@@ -167,31 +164,9 @@ function BarTrack:LayoutBar(trackFrame)
 		Layout:PlaceAlong(body, trackFrame, 0, length, extent)
 	end
 	body:Show()
-	-- The ready row's box: as Blizzard's cast bar shows the spell's name in a
-	-- box behind its bar reaching below it (ui-castingbar-textbox, 12 px
-	-- below an 11 px bar), a box behind the bar reaching down over the strip
-	-- the ready row sits in, the bar's width less BOX_INSET at each end.
-	-- Flat (or without the art): a plain dark box.
-	local rowRoom = Addon.SingleLane.RowRoom()
-	local box = Part("rowBox", "BACKGROUND", -2)
-	if rowRoom > 0 then
-		if native and Skin.Native("castTextbox") then
-			Skin.SetArt(box, Skin.ATLAS.castTextbox)
-			Color(box, WHITE)
-		else
-			Skin.SetArt(box)
-			Color(box, ROW_BOX_COLOR)
-		end
-		-- Inset at both ends to meet the inside of the border's rounded ends.
-		local inset = BOX_INSET * k
-		Layout:PlaceAlong(box, trackFrame, inset, length - 2 * inset, extent + rowRoom, cross * rowRoom / 2)
-		box:Show()
-	else
-		box:Hide()
-	end
-	-- The seconds scale: a tick under the bar (and the ready row) at each
-	-- mark, the seconds under the ticks ahead of the now line.
-	local under = extent / 2 + rowRoom
+	-- The seconds scale: a tick under the bar at each mark, the seconds under
+	-- the ticks ahead of the now line.
+	local under = extent / 2
 	for _, mark in ipairs(marks) do
 		local tick = ticks:Take()
 		Color(tick, BORDER_COLOR, TICK_ALPHA)

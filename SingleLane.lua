@@ -57,17 +57,17 @@ local AUTO_CHAIN = { 0.47, 0.78, 0.82, 0.2 }
 
 -- The bar (ADR-0006; VISUAL.md, Layouts): a framed bar the setting's height.
 -- Icons fill it inside its border (plain, in both skins, as Blizzard's cast
--- bar shows its icon - Skin.StyleIcon), casts fill it, and the ready row
--- sits under it in a strip ROW_ROOM tall, as Blizzard's cast bar shows
--- the spell's name in the box under its bar. Inside its border: Flat's is
--- 1 px; Native's, Blizzard's swing timer border, keeps what 4everSwingTimer
--- keeps clear inside it across - 4 px.
+-- bar shows its icon - Skin.StyleIcon), casts fill it, and ready spells park
+-- on it at the now line (the ready stack, ADR-0009). Inside its border:
+-- Flat's is 1 px; Native's, Blizzard's swing timer border, keeps what
+-- 4everSwingTimer keeps clear inside it across - 4 px.
 local FLAT_INSET, NATIVE_INSET = 1, 4
--- The ready row under the bar: ROW_GAP from the now line, 12 px slots 4 px
--- apart, padded inside their strip (2 px above and below a 12 px icon, and
--- at least ROW_PAD from the box's end).
-local ROW_GAP = 12
-local ROW_ICON, ROW_SPACE, ROW_ROOM, ROW_PAD = 12, 4, 16, 5
+-- The card stack and the ready stack, one family: each icon behind the
+-- front peeks out STACK_PEEK further, and STACK_SHOWN show.
+local STACK_PEEK, STACK_SHOWN = 5, 3
+-- The ready stack's icons: PARK_SCALE of the bar's, so the now line shows
+-- above and below the front one.
+local PARK_SCALE = 0.75
 local BAR_NOW_REACH, BAR_PIP_ROOM = 6, 5 -- the now line past the bar, and its diamonds
 local BAR_SCALE_ROOM = 16 -- under the bar: the seconds scale's ticks and numbers
 local BAR_STRIP = 4 -- the GCD strip along the bar's far edge
@@ -106,20 +106,14 @@ function SingleLane.NowReach()
 	return BAR_NOW_REACH * Scale()
 end
 
--- The strip under the bar holding the ready row, when any spell has a slot;
--- and all that hangs under the bar (the strip, the seconds scale).
-function SingleLane.RowRoom()
-	return Layout.slotCount > 0 and ROW_ROOM * Scale() or 0
-end
-
+-- All that hangs under the bar: the seconds scale.
 function SingleLane.UnderBar()
-	return SingleLane.RowRoom() + (Addon:GetSetting("barScale") and BAR_SCALE_ROOM * Scale() or 0)
+	return Addon:GetSetting("barScale") and BAR_SCALE_ROOM * Scale() or 0
 end
 
 -- A bar's art (Native: Blizzard's cast bar fills, one family with the bar's
 -- frame; Renderer BarArt). The cast and channel fills carry their own
--- color, so they go in untinted; the grey uninterruptible fill takes Auto
--- Shot's teal. The fill fills the bar's height, its art laid across the
+-- color, so they go in untinted. The fill fills the bar's height, its art laid across the
 -- whole cast and revealed up to now (Renderer PlaceBar), as Blizzard's cast
 -- bar fills.
 local ART_ELAPSED, ART_REMAINING = { 1, 1, 1, 0.95 }, { 1, 1, 1, 0.4 }
@@ -128,52 +122,40 @@ local function CastArt(desc, key, elapsed, remaining)
 	local native = Addon.Skin.Native(key)
 	-- A cast fill is revealed up to now, as Blizzard's cast bar reveals it.
 	desc.reveal = native or nil
-	if native and key ~= "castNeutral" then
+	if native then
 		elapsed, remaining = ART_ELAPSED, ART_REMAINING
 	end
 	desc.color, desc.unelapsedColor = elapsed, remaining
 end
 
 -- ---------------------------------------------------------------------------
--- The ready row
+-- The ready stack
 -- ---------------------------------------------------------------------------
 
--- A spell lane has a slot unless its cooldown is long (a test lane brings its
--- own IsLong).
-local function Slotted(lane)
-	return lane.group == "spell" and not (lane.IsLong or Addon.Spells.IsLong)(lane)
+-- A spell lane parks in the ready stack unless its cooldown is long (a test
+-- lane brings its own IsLong) or the stack is off.
+local function Parks(lane)
+	return Layout.readySpells == "stack" and lane.group == "spell" and not (lane.IsLong or Addon.Spells.IsLong)(lane)
 end
 
--- Numbers the spell lanes that get a slot, in lane order (the lane set's),
--- and returns how many slots there are. Run on every layout pass.
-function SingleLane.AssignSlots(lanes)
-	local count = 0
-	for i = 1, #lanes do
-		local lane = lanes[i]
-		if Slotted(lane) then
-			count = count + 1
-			lane.slot = count
-		else
-			lane.slot = nil
-		end
-	end
-	return count
-end
-
--- True when the slots would be numbered differently now (a cooldown became
--- known to be long): the renderer re-lays out. A lane coming or going lays
--- out anyway.
-function SingleLane.SlotsChanged(lanes)
+-- Numbers the spell lanes that park, in lane order (the lane set's): the
+-- order inside each group of the stack. With `apply` (every layout pass) it
+-- writes the numbers; without, it only tells whether they changed (a
+-- cooldown became known to be long: the renderer re-lays out).
+function SingleLane.NumberReady(lanes, apply)
 	local count = 0
 	for i = 1, #lanes do
 		local lane = lanes[i]
 		local want
-		if Slotted(lane) then
+		if Parks(lane) then
 			count = count + 1
 			want = count
 		end
-		if lane.slot ~= want then
-			return true
+		if lane.readyOrder ~= want then
+			if not apply then
+				return true
+			end
+			lane.readyOrder = want
 		end
 	end
 	return false
@@ -188,66 +170,76 @@ function SingleLane.SinkIcon()
 	return SINK_ICON * Scale()
 end
 
--- How far the ready row reaches from the now line: its near gap, its slots
--- and the padding to the box's end.
-function SingleLane.RowSpan(count)
-	if count == 0 then
-		return 0
-	end
-	return (ROW_GAP + count * ROW_ICON + (count - 1) * ROW_SPACE + ROW_PAD) * Scale()
+-- A parked icon's size (Layout.parkSize, set by the renderer's layout pass):
+-- about PARK_SCALE of the bar's icon, its edges a whole number of screen
+-- pixels in from the bar's edges (on `region`'s scale). The bar's edges
+-- fall between pixels at most scales; an icon whose edges fall elsewhere
+-- rounds differently and draws a pixel off the bar's middle.
+function SingleLane.ParkSize(region)
+	local bar = Layout.trackExtent
+	return bar - 2 * Util.PixelSize(region, (bar - PARK_SCALE * Layout.iconSize) / 2)
 end
 
--- A slot's centre: the offset along the axis, and across from the bar's
--- middle line (in the strip under the bar).
-function SingleLane.SlotOffsets(slot)
-	local k = Scale()
-	local pitch = (ROW_ICON + ROW_SPACE) * k
-	local along
-	if Layout.readyRowSide == "future" then
-		along = Layout.nowX + (ROW_GAP + ROW_ICON / 2) * k + (slot - 1) * pitch
-	else
-		along = Layout.nowX - (ROW_GAP + ROW_ICON / 2) * k - (Layout.slotCount - slot) * pitch
-	end
-	return along, Layout.orient.crossSign * (Layout.trackExtent / 2 + ROW_ROOM * k / 2)
+-- Across the bar, a parked icon sits on the art's lit middle (Skin).
+local function ParkAcross()
+	return Addon.Skin.BarMiddle(Scale())
 end
 
--- Where a returning cooldown's ring flashes: on its slot, or on the now
--- line for a long cooldown.
+-- Whether a returning cooldown has a place in the stack (else it lingers on
+-- the now line, Effects:Ring), and where its ring flashes: on its place, or
+-- on the now line.
+function SingleLane.HasPlace(lane)
+	return lane.readyOrder ~= nil
+end
+
 function SingleLane.RingPosition(lane)
-	if lane.slot then
-		return SingleLane.SlotOffsets(lane.slot)
+	if lane.readyOrder and lane.parkIndex then
+		return Layout.nowX + (lane.parkIndex - 1) * STACK_PEEK * Scale(), ParkAcross()
 	end
 	return Layout.nowX, 0
 end
 
+-- True when a bar in `out` ends at the icon's instant.
+local function EndsBar(desc, out)
+	local t = desc.t + (desc.after or 0)
+	for i = 1, #out do
+		local bar = out[i]
+		if bar.shape == "bar" and bar.tEnd == t then
+			return true
+		end
+	end
+	return false
+end
+
 -- Adds what a lane's own descriptors lack: a queued ability (or the landing
 -- it rode) keeps its swing diamond on the bar's edge, the icon riding the
--- bar; a cooling spell has no ready mark, so its slot shows an empty outline.
+-- bar; an icon ending a bar (a cast's completion, an Auto Shot) is marked
+-- `endsBar`, so it sits past the bar's end, its near edge on it (Renderer
+-- PlaceMark).
 function SingleLane.Prepare(lane, out)
-	if lane.group == "hand" then
-		for i = #out, 1, -1 do
-			local desc = out[i]
-			if desc.queued or (desc.onSwing and not desc.predicted) then
-				local diamond = {}
-				for key, value in pairs(desc) do
-					diamond[key] = value
-				end
-				diamond.queued, diamond.onSwing = nil, nil
-				out[#out + 1] = diamond
-				desc.onBar = true
+	local count = #out
+	for i = 1, count do
+		local desc = out[i]
+		-- (A shot's icon is set in Adapt: autoShot marks it.)
+		if (desc.icon or desc.autoShot) and desc.t and not desc.shape then
+			desc.endsBar = EndsBar(desc, out) or nil
+		end
+	end
+	if lane.group ~= "hand" then
+		return
+	end
+	for i = count, 1, -1 do
+		local desc = out[i]
+		if desc.queued or (desc.onSwing and not desc.predicted) then
+			local diamond = {}
+			for key, value in pairs(desc) do
+				diamond[key] = value
 			end
-		end
-		return
-	end
-	if lane.group ~= "spell" or not lane.slot then
-		return
-	end
-	for i = 1, #out do
-		if out[i].atNow then
-			return
+			diamond.queued, diamond.onSwing, diamond.endsBar = nil, nil, nil
+			out[#out + 1] = diamond
+			desc.onBar = true
 		end
 	end
-	out[#out + 1] = { slot = lane.slot, shape = "outline" }
 end
 
 -- ---------------------------------------------------------------------------
@@ -260,7 +252,6 @@ end
 -- sorted by x then time. It sets on each descriptor, for the renderer:
 -- `peek` (px along the axis), `stacked` (hidden), `front`, `more` (how many
 -- the front hides), `linkMark`, `noChevron`.
-local STACK_PEEK = 5 -- px a stacked icon peeks out (and a parked one tucks)
 local LINK_MATCH = 0.05 -- seconds: a linked set returning together
 
 local function ClearStack(desc)
@@ -324,7 +315,7 @@ function SingleLane.Stack(list, count)
 				local item = list[m]
 				if item ~= front and not item.far and not item.desc.stacked then
 					shown = shown + 1
-					if shown > 2 then
+					if shown >= STACK_SHOWN then
 						item.desc.stacked, extra = true, extra + 1
 					elseif math.abs(item.x - front.x) < peek * shown then
 						item.desc.peek = front.x + peek * shown - item.x
@@ -337,18 +328,49 @@ function SingleLane.Stack(list, count)
 	end
 end
 
--- A linked set's ready slots wear the link mark. `ready` is every ready
--- slot's descriptor.
-function SingleLane.StackSlots(ready, readyCount)
+-- The ready stack (ADR-0009): usable spells first, then unusable ones (a
+-- tint), then those whose cooldown is not known yet (desaturated); lane
+-- order inside each group.
+local function ReadyGroup(desc)
+	if desc.desaturated then
+		return 3
+	end
+	return desc.tint and 2 or 1
+end
+
+local function ByReady(a, b)
+	local ga, gb = ReadyGroup(a), ReadyGroup(b)
+	if ga ~= gb then
+		return ga < gb
+	end
+	return a.lane.readyOrder < b.lane.readyOrder
+end
+
+-- Places every parked descriptor (`ready`, `readyCount` of them): the front
+-- on the now line, each further one a fold toward the future along the bar,
+-- STACK_SHOWN shown and the rest hidden; sets `parkIndex` on each and on
+-- its lane (the ring's place). A linked set's ready spells wear the link mark.
+function SingleLane.StackReady(ready, readyCount)
+	for i = readyCount + 1, #ready do
+		ready[i] = nil
+	end
 	for i = 1, readyCount do
 		ClearStack(ready[i])
 	end
+	table.sort(ready, ByReady)
+	local fold, across = STACK_PEEK * Scale(), ParkAcross()
 	for i = 1, readyCount do
-		local a = ready[i]
-		if a.linkKey then
+		local desc = ready[i]
+		if i <= STACK_SHOWN then
+			desc.along, desc.across, desc.parkIndex = Layout.nowX + (i - 1) * fold, across, i
+		else
+			desc.stacked, desc.parkIndex = true, nil
+		end
+		desc.lane.parkIndex = desc.parkIndex
+		if desc.linkKey then
 			for j = 1, readyCount do
-				if j ~= i and ready[j].linkKey == a.linkKey then
-					a.linkMark = true
+				if j ~= i and ready[j].linkKey == desc.linkKey then
+					desc.linkMark = true
 					break
 				end
 			end
@@ -389,10 +411,14 @@ end
 local function AdaptShot(desc)
 	desc.across = 0
 	if desc.shape == "bar" then
+		-- Plain teal in both skins: Blizzard's grey uninterruptible fill,
+		-- tinted, matched Native's grey body ahead of the now line (in game,
+		-- build 70338).
+		desc.art = false
 		if desc.chain then
-			CastArt(desc, "castNeutral", AUTO_CHAIN, AUTO_CHAIN)
+			desc.color, desc.unelapsedColor = AUTO_CHAIN, AUTO_CHAIN
 		else
-			CastArt(desc, "castNeutral", AUTO_ELAPSED, AUTO_REMAINING)
+			desc.color, desc.unelapsedColor = AUTO_ELAPSED, AUTO_REMAINING
 		end
 		desc.fade = true
 		return true
@@ -483,20 +509,20 @@ end
 
 -- Spell lanes: the predicted return rides the bar and flashes as it nears
 -- the now line (the card stack sorts out overlaps); the ready, unusable and
--- unknown-cooldown marks and a cooling spell's ghost fill the spell's slot of
--- the ready row, a long cooldown having none. What a cast leaves behind is
--- the cast lane's.
+-- unknown-cooldown marks park in the ready stack on the now line, a long
+-- cooldown (or every spell, with the stack off) having none. What a cast
+-- leaves behind is the cast lane's.
 local function AdaptSpell(lane, desc)
 	if desc.shape == "bar" or desc.shape == "tick" then
 		return false
 	end
-	if desc.atNow or desc.slot then
-		if not lane.slot then
+	if desc.atNow then
+		if not lane.readyOrder then
 			return false
 		end
-		desc.slot = lane.slot
-		desc.along, desc.across = SingleLane.SlotOffsets(lane.slot)
-		desc.size = ROW_ICON * Scale()
+		desc.parked, desc.lane = true, lane
+		desc.along, desc.across = Layout.nowX, 0 -- the stack pass places it
+		desc.size = Layout.parkSize
 		return true
 	end
 	if not desc.predicted then

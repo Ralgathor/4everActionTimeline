@@ -226,11 +226,12 @@ numbers.
   - cast lane: a bar filling the bar's height (instants: an icon at the
     moment of use);
   - spell lanes: predicted returns as icons in the bar (overlaps form a
-    card stack); ready spells fill fixed slots of the **ready row** under
-    the bar (in the box behind it, as the cast bar's name box) in lane-set
-    order; a **long cooldown** gets no slot (a ring on the now line marks
-    its return);
-  - sink lanes: one thin row each under the ready row.
+    card stack); ready spells park on the now line in the **ready stack**
+    (ADR-0009: usable first, then unusable, then unknown cooldowns, lane-set
+    order inside each, three shown, the rest hidden), or nowhere with Ready
+    spells None; a **long cooldown** never parks (its icon lingers on the
+    now line under a ring as it returns);
+  - sink lanes: one thin row each under the bar.
   Detailed (a lane per kind) and Single lane (one thin track) were built
   first and removed (ADR-0007).
   A spell is a long cooldown when its cooldown is 30 s or more, unless
@@ -566,7 +567,7 @@ numbers.
   Cooldown Manager and Swing Timer split theirs. **Edit Mode** holds the
   frame: its position and the settings of its shape — scale, opacity,
   length, bar height, past and future window, engine lane gap, visibility, orientation,
-  ready row side, skin, GCD style, seconds scale — in a panel
+  ready spells, skin, GCD style, seconds scale — in a panel
   that opens when the timeline is clicked there. The **spell window**
   (`/actiontimeline config`) holds what is shown: every class spell as an
   icon in four sections (Timeline, Long cooldowns, Engine lanes, Not
@@ -586,8 +587,10 @@ numbers.
   `EventRegistry` `EditMode.Enter` / `EditMode.Exit`, shows inside
   Blizzard's own selection art (blue, yellow when clicked, a label) only
   while Edit Mode is open, drags,
-  snaps by hand against `EditModeManagerFrame.registeredSystemFrames` when
-  Edit Mode's snap is on, and stores its own position (UIParent-centred) in
+  snaps by hand against `EditModeManagerFrame.registeredSystemFrames` and,
+  while it shows, Edit Mode's grid (lines `Grid.gridSpacing` apart through
+  its center) when Edit Mode's snap is on, drawing Blizzard's red snap
+  preview lines (our own `Line`s, 1.5 px) while it drags, and stores its own position (UIParent-centred) in
   the player layer, **one per Edit Mode layout** (`positions[layoutType:name]`,
   with `positions.default` for a layout that has none). A switch of the
   active layout (`EDIT_MODE_LAYOUTS_UPDATED`) moves it. Clicking it opens
