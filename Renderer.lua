@@ -53,6 +53,7 @@ local ENTER_TIME = 0.2
 -- A parked ready icon whose place in the stack changes glides there (a
 -- place, not an instant: the jump rule is for marks placed by time).
 local PARK_GLIDE = 0.15
+local BADGE_SLIDE = 0.25 -- a swing badge sliding between the bar and its parked edge
 local CHEVRON_COLOR = { 1, 1, 1 }
 -- Red (cast failure, clip) and amber (the held ranged hand) are the effect
 -- colors, so a border always matches its pop.
@@ -163,6 +164,7 @@ local function ResetMark(mark)
 	ResetWidget(mark)
 	mark.chevron:Hide()
 	mark.pinned = nil
+	mark.acrossTo = nil -- the badge's slide starts afresh
 	-- The card stack (StackMarks): the level, the "+n" and the link mark.
 	Raise(mark, nil, markLayer:GetFrameLevel() + 1)
 	if mark.moreText then
@@ -437,7 +439,7 @@ end
 -- once (`highlight`) as they come within URGENT_LEAD of the now line
 -- (SingleLane.Adapt decides). A fixed place (a parked ready mark: `t` nil)
 -- neither flashes nor fades.
-local function PlaceWidget(widget, desc, along, t, now)
+local function PlaceWidget(widget, desc, along, t, now, across)
 	local lead = t and t - now
 	if desc.highlight and t then
 		-- One flash on crossing; a mark built already inside never flashes,
@@ -451,7 +453,7 @@ local function PlaceWidget(widget, desc, along, t, now)
 		end
 	end
 	local shake = desc.shake
-	Anchor(widget, along, (desc.across or 0) + (shake and ShakeOffset(shake, now) or 0))
+	Anchor(widget, along, (across or desc.across or 0) + (shake and ShakeOffset(shake, now) or 0))
 	local a
 	if desc.fade and t then
 		a = FadeFactor(t, now) * widget.alphaValue
@@ -501,6 +503,21 @@ local function StackExtras(mark, desc)
 	end
 end
 
+-- A swing badge's place across the bar: it slides between the bar and the edge
+-- it parks on (a place, not an instant), from where it shows if turned midway.
+local function SlideAcross(mark, target, now)
+	local to = mark.acrossTo
+	if to == nil then
+		mark.acrossFrom, mark.acrossTo, mark.acrossStart = target, target, now
+		return target
+	end
+	local shown = mark.acrossFrom + (to - mark.acrossFrom) * EaseOut(min(max((now - mark.acrossStart) / BADGE_SLIDE, 0), 1))
+	if to ~= target then
+		mark.acrossFrom, mark.acrossTo, mark.acrossStart = shown, target, now
+	end
+	return shown
+end
+
 local function PlaceMark(mark, now)
 	local desc = mark.desc
 	if desc.stacked then -- hidden behind its card stack's front
@@ -532,7 +549,7 @@ local function PlaceMark(mark, now)
 	if desc.endsBar and not pinned then
 		along = along + mark.size / 2
 	end
-	PlaceWidget(mark, desc, along + (desc.peek or 0), t, now)
+	PlaceWidget(mark, desc, along + (desc.peek or 0), t, now, desc.turned and SlideAcross(mark, desc.across or 0, now))
 	pinned = pinned and not desc.noChevron
 	StackExtras(mark, desc)
 	if mark.pinned ~= pinned then
@@ -950,12 +967,15 @@ end
 local function StackMarks(now)
 	local count, readyCount = 0, 0
 	local lanes = Layout:Lanes()
+	local base = markLayer:GetFrameLevel() + 1
 	for i = 1, #lanes do
 		local used = lanes[i].pools.marks.used
 		for j = 1, #used do
 			local mark = used[j]
 			local desc = mark.desc
-			if desc.parked then
+			if desc.turned then -- a swing badge: the main hand's over the off hand's
+				Raise(mark, desc.badgeFront and base + 1 or nil, base)
+			elseif desc.parked then
 				readyCount = readyCount + 1
 				parkedDescs[readyCount], parkedMarks[readyCount] = desc, mark
 			elseif desc.predicted and not desc.atNow and not desc.leaving then
@@ -979,7 +999,6 @@ local function StackMarks(now)
 	table.sort(stackItems, ByStack)
 	SingleLane.Stack(stackItems, count)
 	SingleLane.StackReady(parkedDescs, readyCount)
-	local base = markLayer:GetFrameLevel() + 1
 	for i = 1, count do
 		local item = stackItems[i]
 		Raise(item.mark, item.desc.front and base + 1 or nil, base)

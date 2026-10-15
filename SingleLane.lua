@@ -25,9 +25,10 @@ local DIAMOND, CHAIN_DIAMOND = 5, 4 -- a swing diamond's half diagonal
 local BADGE, BADGE_CHAIN = 18, 13
 local TURN_SCALE = 0.7 -- a turned badge's side: its diagonal is 1.41 times that
 local BADGE_DIAG = BADGE * TURN_SCALE * math.sqrt(2)
+local BADGE_RAISE = 4 -- a parked badge sits this far past the bar's edge
+local BADGE_STEP = 6 -- the off hand's, parked behind the main hand's, this much further out
 -- The stem's tint, over the pip desaturated: the action bar frame's bronze, dimmer for a prediction.
 local STEM_GOLD, STEM_GRAY = { 1, 0.82, 0.5 }, { 0.62, 0.58, 0.52 }
-local BADGE_RAISE = 4 -- every badge sits this far further off the bar's edge
 local DELAY_LINE = 2
 -- An engine-drawn lane's thin row, and its icon.
 local SINK_ROW, SINK_ICON = 18, 16
@@ -107,9 +108,9 @@ end
 -- The pad across the frame (the now line's reach past the bar and its
 -- diamonds), and the now line's reach.
 function SingleLane.BarPad()
-	-- A swing badge hangs past the bar's edge by its raise and half its diagonal
-	-- (and the frame art's pixel): the frame clips what it does not hold.
-	return math.max(BAR_NOW_REACH + BAR_PIP_ROOM, BADGE_DIAG / 2 + BADGE_RAISE + 1) * Scale()
+	-- A parked swing badge hangs past the bar's edge by its raise and half its
+	-- diagonal (and the frame art's pixel): the frame clips what it does not hold.
+	return math.max(BAR_NOW_REACH + BAR_PIP_ROOM, BADGE_DIAG / 2 + BADGE_RAISE + BADGE_STEP + 1) * Scale()
 end
 
 function SingleLane.NowReach()
@@ -408,10 +409,24 @@ local function Side(lane)
 	return -Layout.orient.crossSign * side * Layout.trackExtent / 2
 end
 
--- A melee hand's badge sits BADGE_RAISE past the bar's edge, away from its
--- middle: clear of the ready stack at the now line.
-local function Raised(across, k)
-	return across + (across < 0 and -1 or 1) * BADGE_RAISE * k
+-- A melee hand's badge sits in the bar: centred, or, dual-wielding, the main
+-- hand toward its lane-start edge and the off hand toward the other.
+local function BadgeAcross(lane)
+	if Addon.Hands.IsDualWielding() then
+		-- As far out as the whole badge still fits inside the bar.
+		local room = math.max(Layout.trackExtent / 2 - BADGE_DIAG / 2 * Scale(), 0)
+		return Side(lane) < 0 and -room or room
+	end
+	return 0
+end
+
+-- A badge parked on the now line keeps to the bar's lane-start edge, BADGE_RAISE
+-- past it: clear of the ready stack there. Both hands park on the same side,
+-- the off hand stepped further out behind the main hand's (Renderer, StackMarks).
+local function ParkedAcross(lane, k)
+	local out = -Layout.orient.crossSign
+	local step = lane.hand == "offhand" and BADGE_STEP or 0
+	return out * (Layout.trackExtent / 2 + (BADGE_RAISE + step) * k)
 end
 
 -- Where a lane's marks and effects sit across the bar: a ranged hand
@@ -424,7 +439,7 @@ function SingleLane.Across(lane)
 	end
 	local across = Side(lane)
 	if lane.hand and lane.hand ~= "ranged" then
-		across = Raised(across, Scale())
+		across = BadgeAcross(lane)
 	end
 	return across
 end
@@ -484,13 +499,14 @@ local function AdaptHand(lane, desc)
 	if desc.icon and lane.hand ~= "ranged" then
 		desc.size = (desc.chain and BADGE_CHAIN or BADGE) * k * TURN_SCALE
 		desc.turned, desc.frame = true, true
+		desc.badgeFront = lane.hand == "mainhand" or nil -- parked, over the off hand's
 		-- Parked on the now line the stem would cover its art: none there.
 		-- Only the next swing has one: the rest of the chain is dim and bare, so a
 		-- dual-wielder's bar is not a row of pips.
 		desc.pipHalf = Addon.Hands.IsDualWielding() or nil
 		desc.stemColor = not (desc.atNow or desc.chain) and (gray and STEM_GRAY or STEM_GOLD) or nil
 		desc.desaturated = gray or nil
-		desc.across = Raised(desc.across, k)
+		desc.across = desc.atNow and ParkedAcross(lane, k) or BadgeAcross(lane)
 		-- Dim by darkening, not by alpha: the badge stays opaque over the bar's border.
 		desc.brightness = desc.dim and 0.5 or (desc.chain and CHAIN_ALPHA or nil)
 		desc.fade = happened or nil

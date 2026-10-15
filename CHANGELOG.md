@@ -13,15 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cast bar, with what you just did on one side of a now line and what is
   coming on the other. Things that happened are in full color; predictions
   are faded, so you can tell fact from forecast at a glance.
-- Swings: your main hand and off hand as badges on the bar's edges - the
+- Swings: your main hand and off hand as badges on the bar - the
   equipped weapon's icon in the action bar button's frame, turned into a
   diamond - the next swing, the ones after it (smaller, dim) and past
-  swings fading away. The next swing has a tick across the bar, Blizzard's
-  swing timer pip, tinted to match the frame: the full bar's height, or
-  half of it each when dual-wielding so the two never cross. Auto-attack
-  off parks a dim badge beside the ready spells on the now line. Your
-  ranged weapon stays a diamond (hollow). A queued ability such as Heroic
-  Strike shows its icon on the bar at the swing it will ride.
+  swings fading away. One weapon: the badge is centered on the bar;
+  dual-wielding: the main hand sits toward the top edge and the off hand
+  toward the bottom, each inside the bar. The next swing has a tick across
+  the bar, Blizzard's swing timer pip, tinted to match the frame: the
+  bar's full height, or from the badge to the far edge when dual-wielding.
+  Auto-attack off (or any swing parked on the now line) slides its badge
+  out to the bar's top edge, a dim one beside the ready spells; the off
+  hand stacks 6 px further out behind the main hand. Your ranged weapon
+  stays a diamond (hollow). A queued ability such as Heroic Strike shows
+  its icon on the bar at the swing it will ride.
 - Auto Shot: the shot's windup, when you must stand still, is drawn as a
   teal cast ending at the Auto Shot icon. Moving holds the shot back: its
   icon turns amber and an amber line shows the delay.

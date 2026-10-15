@@ -430,8 +430,8 @@ end
 -- under the badge. Native: the swing timer's own tick (ASSETS.md), desaturated
 -- and tinted `color` ({r, g, b}: the pip's blue-grey would clash with the
 -- frame's bronze), at its own proportions scaled to the bar's height and
--- centered on the bar - or on the bar's near half (`half`) when dual-wielding,
--- so the two hands' stems never cross - turned for a vertical timeline;
+-- centered on the bar - or, when dual-wielding (`half`), from the badge to the
+-- bar's far edge, the hands' stems pointing opposite ways - turned for a vertical timeline;
 -- otherwise a 1 px line from the badge to the bar's far edge. `across`: the
 -- mark's place across the bar. A nil `color` hides it.
 local PIP_WIDTH = 0.65 -- the pip drawn this much narrower, in line with the badge's thin frame
@@ -475,10 +475,10 @@ function Skin.SetStem(mark, color, across, half)
 	if native then
 		local width, height = Util.AtlasSize(ATLAS.swingPip, 4, 26)
 		local full = math.min(extent / height, PIP_MAX_SCALE)
-		local scale = half and math.min(extent / 2 / height, PIP_MAX_SCALE) or full
+		local scale = half and math.min((extent / 2 + math.abs(across)) / height, PIP_MAX_SCALE) or full
 		-- The thickness keeps the full-bar pip's (it would halve with the length).
 		thickness, length = width * full * PIP_WIDTH, height * scale
-		middle = (half and out * extent / 4 or 0) - across
+		middle = half and -out * height * scale / 2 or 0
 	else
 		thickness = Util.PixelSize(mark, 1)
 		length = math.abs(across) + extent / 2
