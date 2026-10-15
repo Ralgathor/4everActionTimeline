@@ -47,6 +47,8 @@ local Skin = {
 		castFill = "ui-castingbar-filling-standard",
 		castChannel = "ui-castingbar-filling-channel",
 		castPip = "ui-castingbar-pip",
+		-- Blizzard's swing timer's own tick: a swing badge's stem across the bar.
+		swingPip = "ui-swingtimerbar-pip",
 		-- The glow trailing the cast bar's spark, and a channel's shadow there.
 		castGlow = "cast_standard_pipglow",
 		channelShadow = "cast_channel_pipshadow",
@@ -251,6 +253,18 @@ function Skin.RegionCell(texture, info, column, row, columns, rows)
 	texture:SetTexCoord(l + column * w, l + (column + 1) * w, t + row * h, t + (row + 1) * h)
 end
 
+-- RegionCell turned 45 degrees: the quad (sqrt 2 times the cell's size) samples
+-- the cell rotated about its centre, so it reaches into the neighbouring cells;
+-- a mask of the cell's turned shape cuts it back (Effects, TurnFlipbook).
+function Skin.RegionCellTurned(texture, info, column, row, columns, rows)
+	local l, r, t, b = info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord
+	local w, h = (r - l) / columns, (b - t) / rows
+	local cx, cy = l + (column + 0.5) * w, t + (row + 0.5) * h
+	-- The quad's corners (+-0.5 sqrt 2 cells) turned back by 45 degrees land on
+	-- the cell's edge midpoints, a whole cell out: top, left, right, bottom.
+	texture:SetTexCoord(cx, cy - h, cx - w, cy, cx + w, cy, cx, cy + h)
+end
+
 -- The link mark: a linked set returning together is one icon,
 -- badged in its corner - a dark square with a warm dot, in both skins (no
 -- link atlas exists, ASSETS.md).
@@ -275,8 +289,35 @@ function Skin.CreateLinkBadge(mark)
 	return badge
 end
 
+-- The icon's size and crop: a plain icon is 2 px under its size and
+-- edge-cropped; a framed one (SetIconFrame) fills its size and shows the whole
+-- texture, the frame art and mask trimming its edge.
+local FRAME_WIDTH, FRAME_HEIGHT, BUTTON = 46, 45, 45 -- the action button's frame art on its icon
+Skin.FRAME_RATIO = FRAME_WIDTH / BUTTON
+local function FitIcon(art)
+	local icon, size = art.icon, art.size
+	if not size then
+		return
+	end
+	if art.framed then
+		icon:SetSize(size, size)
+		icon:SetTexCoord(0, 1, 0, 1)
+		if art.turned then
+			icon:SetRotation(math.pi / 4) -- replaces the coordinates just set
+		end
+		art.frame:SetSize(size * FRAME_WIDTH / BUTTON, size * FRAME_HEIGHT / BUTTON)
+		-- Centered (not from the top left) so a turned frame turns on the icon.
+		art.frame:ClearAllPoints()
+		art.frame:SetPoint("CENTER", icon, "CENTER", size * (FRAME_WIDTH - BUTTON) / 2 / BUTTON, 0)
+		art.frameMask:SetSize(size * art.maskWidth / BUTTON, size * art.maskHeight / BUTTON)
+	else
+		icon:SetSize(size - 2, size - 2)
+		icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+	end
+end
+
 function Skin.CreateIconArt(owner)
-	local art = {}
+	local art = { owner = owner }
 	art.border = MovingTexture(owner, "ARTWORK", -2)
 	art.icon = MovingTexture(owner, "ARTWORK", 0)
 	return art
@@ -290,12 +331,165 @@ function Skin.StyleIcon(art, size)
 	end
 	art.size = size
 	local icon = art.icon
-	icon:SetSize(size - 2, size - 2)
-	icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+	FitIcon(art)
 	art.border:ClearAllPoints()
 	art.border:SetPoint("TOPLEFT", icon, "TOPLEFT", -1, 1)
 	art.border:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 1, -1)
 	art.borderColor = false
+end
+
+-- The action bar button's art (Blizzard_ActionBar, ActionButtonTemplate.xml):
+-- the icon cut by IconFrame-Mask (wrap modes CLAMPTOBLACKADDITIVE: nothing
+-- outside the mask's own area), the slot art and the opaque background
+-- behind it, and IconFrame over it, 46x45 on the 45x45 icon from its top
+-- left. Returns whether it was drawn; without the atlases the caller keeps a
+-- plain rim.
+local ICON_FRAME, ICON_FRAME_MASK = "UI-HUD-ActionBar-IconFrame", "UI-HUD-ActionBar-IconFrame-Mask"
+local ICON_FRAME_SLOT, ICON_FRAME_BACKGROUND = "UI-HUD-ActionBar-IconFrame-Slot", "UI-HUD-ActionBar-IconFrame-Background"
+
+-- A mask from an atlas with the button's wrap modes (SetAtlas takes none).
+local function SetMaskAtlas(mask, atlas)
+	local info = Skin.Region(atlas)
+	if info then
+		mask:SetTexture(info.file or info.filename, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+		mask:SetTexCoord(info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord)
+	else
+		mask:SetAtlas(atlas)
+	end
+end
+
+-- Sets the button's pieces from their atlases, then turns them a diamond
+-- (SetRotation replaces the texture coordinates, so the art is set first).
+local function ApplyFrameArt(art)
+	art.appliedTurn = art.turned
+	SetMaskAtlas(art.frameMask, ICON_FRAME_MASK)
+	if Util.AtlasInfo(ICON_FRAME_BACKGROUND) then
+		art.back:SetAtlas(ICON_FRAME_BACKGROUND)
+	else
+		art.back:SetColorTexture(0, 0, 0, 1)
+	end
+	if Util.AtlasInfo(ICON_FRAME_SLOT) then
+		art.slot:SetAtlas(ICON_FRAME_SLOT)
+	end
+	art.frame:SetAtlas(ICON_FRAME)
+	if art.turned then
+		local turn = math.pi / 4
+		art.frameMask:SetRotation(turn)
+		art.back:SetRotation(turn)
+		art.slot:SetRotation(turn)
+		art.frame:SetRotation(turn)
+	end
+end
+
+-- `turned`: the whole badge turned 45 degrees, a diamond.
+function Skin.SetIconFrame(art, on, turned)
+	local framed = on and Util.AtlasInfo(ICON_FRAME) and Util.AtlasInfo(ICON_FRAME_MASK) and true or false
+	turned = framed and turned and true or false
+	if art.framed == framed and art.turned == turned then
+		return framed
+	end
+	art.framed, art.turned = framed, turned
+	local icon = art.icon
+	if framed then
+		if not art.frame then
+			local owner = art.owner
+			art.frameMask = owner:CreateMaskTexture()
+			-- Centered on the icon at the atlas's own size, not stretched to
+			-- the icon (the button sets no size): the shape may sit inside a
+			-- larger atlas, and stretching it would shrink the visible area.
+			art.frameMask:SetPoint("CENTER", icon, "CENTER")
+			art.maskWidth, art.maskHeight = Util.AtlasSize(ICON_FRAME_MASK, BUTTON, BUTTON)
+			-- Behind the icon: the opaque background, cut by the mask, and the slot
+			-- art over it (ApplyFrameArt sets their art).
+			art.back = MovingTexture(owner, "ARTWORK", -3)
+			art.back:SetAllPoints(icon)
+			art.back:AddMaskTexture(art.frameMask)
+			art.slot = MovingTexture(owner, "ARTWORK", -1)
+			art.slot:SetAllPoints(icon)
+			art.frame = MovingTexture(owner, "OVERLAY", 2)
+			ApplyFrameArt(art)
+		elseif art.appliedTurn ~= turned then
+			ApplyFrameArt(art)
+		end
+		icon:AddMaskTexture(art.frameMask)
+		art.frame:Show()
+		art.back:Show()
+		art.slot:Show()
+	elseif art.frame then
+		icon:RemoveMaskTexture(art.frameMask)
+		art.frame:Hide()
+		art.back:Hide()
+		art.slot:Hide()
+	end
+	art.border:SetShown(not framed) -- the frame art is the rim
+	FitIcon(art)
+	return framed
+end
+
+-- A badge's stem: the swing's exact time on the bar, across it from the badge,
+-- under the badge. Native: the swing timer's own tick (ASSETS.md), desaturated
+-- and tinted `color` ({r, g, b}: the pip's blue-grey would clash with the
+-- frame's bronze), at its own proportions scaled to the bar's height and
+-- centered on the bar - or on the bar's near half (`half`) when dual-wielding,
+-- so the two hands' stems never cross - turned for a vertical timeline;
+-- otherwise a 1 px line from the badge to the bar's far edge. `across`: the
+-- mark's place across the bar. A nil `color` hides it.
+local PIP_WIDTH = 0.65 -- the pip drawn this much narrower, in line with the badge's thin frame
+local PIP_MAX_SCALE = 1.5 -- ... and scaled up to the bar's height, no more than this
+
+function Skin.SetStem(mark, color, across, half)
+	local tick = mark.tick
+	if not color then
+		if tick then
+			tick:Hide()
+			tick.native = nil -- re-applied when shown again
+		end
+		return
+	end
+	local native = Skin.Native("swingPip") and true or false
+	local vertical = Layout.orient.vertical and true or false
+	local extent = Layout.trackExtent
+	if tick and tick.native == native and tick.vertical == vertical and tick.extent == extent
+		and tick.across == across and tick.half == half and tick.color == color then
+		return
+	end
+	if not tick then
+		tick = MovingTexture(mark, "ARTWORK", -5)
+		mark.tick = tick
+	end
+	-- SetRotation replaces the texture coordinates, so the art is set again
+	-- before each change of art or turn, then turned.
+	if tick.native ~= native or tick.vertical ~= vertical then
+		if native then
+			tick:SetAtlas(ATLAS.swingPip)
+		else
+			tick:SetTexture(Util.WHITE)
+		end
+		if vertical then
+			tick:SetRotation(pi / 2)
+		end
+	end
+	tick.native, tick.vertical, tick.extent, tick.across, tick.half, tick.color = native, vertical, extent, across, half, color
+	local out = across < 0 and -1 or 1
+	local thickness, length, middle -- the stem's centre across the bar, from the mark's centre
+	if native then
+		local width, height = Util.AtlasSize(ATLAS.swingPip, 4, 26)
+		local full = math.min(extent / height, PIP_MAX_SCALE)
+		local scale = half and math.min(extent / 2 / height, PIP_MAX_SCALE) or full
+		-- The thickness keeps the full-bar pip's (it would halve with the length).
+		thickness, length = width * full * PIP_WIDTH, height * scale
+		middle = (half and out * extent / 4 or 0) - across
+	else
+		thickness = Util.PixelSize(mark, 1)
+		length = math.abs(across) + extent / 2
+		middle = -out * length / 2
+	end
+	tick:SetSize(thickness, length) -- unturned: thin and long
+	tick:ClearAllPoints()
+	tick:SetPoint("CENTER", mark, "CENTER", Layout:Offsets(0, middle))
+	tick:SetDesaturated(native)
+	tick:SetVertexColor(color[1], color[2], color[3], native and 1 or 0.9)
+	tick:Show()
 end
 
 -- The border's color: nil for black, or {r, g, b} (VISUAL.md, Stopped

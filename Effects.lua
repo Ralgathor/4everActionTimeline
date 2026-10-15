@@ -48,6 +48,10 @@ local HIGHLIGHT_TIME, HIGHLIGHT_PEAK, HIGHLIGHT_SIZE = 0.4, 0.9, 1.5
 local DIAMOND_FLASH_TIME = 0.45
 local DIAMOND_HALO, DIAMOND_HALO_GROWTH, DIAMOND_HALO_ALPHA = 1.6, 1.2, 0.9
 local WHITE_COLOR = { 1, 1, 1 }
+-- A turned badge's flash without the flipbook: the action button's own flash
+-- (a rounded square - the badge's frame shape), turned with the badge,
+-- swelling and fading once over the glow's time.
+local BADGE_FLASH_ATLAS, BADGE_FLASH_TIME, BADGE_FLASH_GROWTH = "UI-HUD-ActionBar-IconFrame-Flash", 0.5, 0.4
 local POP_GROWTH = 0.4
 local STREAK_TIME = 0.3
 local STREAK_HEIGHT = 3
@@ -67,7 +71,7 @@ local SingleLane = Addon.SingleLane
 local layer
 local live = {}
 local shakeStrength = 1
-local freePops, freeStreaks, freeIcons, freeFlashes, freeHalos = {}, {}, {}, {}, {}
+local freePops, freeStreaks, freeIcons, freeFlashes, freeHalos, freeBadgeFlashes = {}, {}, {}, {}, {}, {}
 local lastRing = -math.huge
 local EaseOut = Util.EaseOut
 local floor, sqrt = math.floor, math.sqrt
@@ -105,6 +109,17 @@ end
 local function NewHalo()
 	local texture = Util.MovingTexture(layer, "ARTWORK")
 	texture:SetTexture(WHITE)
+	texture:SetBlendMode("ADD")
+	if texture.SetRotation then
+		texture:SetRotation(pi / 4)
+	end
+	return texture
+end
+
+-- A badge's flash: the button flash atlas, additive, turned 45 degrees.
+local function NewBadgeFlash()
+	local texture = Util.MovingTexture(layer, "OVERLAY")
+	texture:SetAtlas(BADGE_FLASH_ATLAS)
 	texture:SetBlendMode("ADD")
 	if texture.SetRotation then
 		texture:SetRotation(pi / 4)
@@ -162,6 +177,7 @@ local function Flipbook(effect, start)
 	end
 	local texture = remove(freeFlashes) or NewFlipbook()
 	texture:SetTexture(region.file or region.filename)
+	texture:SetVertexColor(1, 1, 1, 1) -- a pooled one may carry a correction's tint
 	effect.kind, effect.region, effect.duration, effect.frame = "flipbook", region, FLASH_TIME, nil
 	return Track(effect, texture, freeFlashes, start)
 end
@@ -173,8 +189,10 @@ local function PlaceAtRing(texture, lane, size)
 	texture:SetPoint("CENTER", lane.frame, Layout.orient.start, Layout:Offsets(along, across))
 end
 
+-- The main and off hand lanes draw no pop: its round pip glow does not fit a
+-- diamond badge (the ranged lane's and the cooldowns' keep it).
 function Effects:Pop(lane, t, color)
-	if layer and t then
+	if layer and t and (not lane.hand or lane.hand == "ranged") then
 		Flash({ kind = "pop", lane = lane, t = t, duration = POP_TIME }, color, true)
 	end
 end
@@ -194,6 +212,28 @@ local function FlashDiamond(widget, radius, color)
 	Track({ kind = "halo", side = radius * sqrt(2), duration = DIAMOND_FLASH_TIME }, halo, freeHalos, start)
 end
 
+-- The flipbook turned 45 degrees (SetRotation would replace the cell's
+-- coordinates): the quad is sqrt 2 times the flash's `size`, sampling the
+-- cell turned (Skin.RegionCellTurned), and a mask - a square of `size`
+-- turned 45 degrees - cuts it back to the turned cell, so no neighbouring
+-- frame shows.
+local function TurnFlipbook(texture, widget, size)
+	local mask = texture.turnMask
+	if not mask then
+		mask = layer:CreateMaskTexture()
+		mask:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+		mask:SetRotation(pi / 4)
+		texture.turnMask = mask
+	end
+	mask:ClearAllPoints()
+	mask:SetPoint("CENTER", widget, "CENTER")
+	mask:SetSize(size, size)
+	texture:AddMaskTexture(mask)
+	texture.maskOn = true
+	texture:SetSize(size * sqrt(2), size * sqrt(2))
+	texture:SetPoint("CENTER", widget, "CENTER")
+end
+
 -- A mark (`widget`, drawing `desc`) crossed into its last 1.5 s, or a
 -- diamond a correction just moved (`color`): a diamond lights in its own
 -- shape; an icon plays the cooldown-ending flash over it, following it.
@@ -206,11 +246,33 @@ function Effects:Highlight(widget, desc, color)
 		return
 	end
 	local size = desc.size or Layout.iconSize
-	local texture = Flipbook({})
+	-- A badge turned 45 degrees (a diamond) gets the same flash turned too.
+	local turned = desc.turned
+	local texture = Flipbook({ turned = turned })
 	if texture then
 		size = size * FLASH_SCALE
+		-- A correction's color tints the flash (white: the plain one).
+		color = color or WHITE_COLOR
+		texture:SetVertexColor(color[1], color[2], color[3], 1)
+		if turned then
+			TurnFlipbook(texture, widget, size)
+			return
+		end
+	elseif turned then
+		-- No flipbook: the button's flash turned with the badge (the round pip
+		-- glow does not fit a diamond), else the diamond halo.
+		if Util.AtlasExists(BADGE_FLASH_ATLAS) then
+			color = color or RING_COLOR
+			local flash = remove(freeBadgeFlashes) or NewBadgeFlash()
+			flash:SetVertexColor(color[1], color[2], color[3], 1)
+			flash:SetPoint("CENTER", widget, "CENTER")
+			Track({ kind = "badgeflash", size = size * Addon.Skin.FRAME_RATIO, duration = BADGE_FLASH_TIME }, flash, freeBadgeFlashes)
+		else
+			FlashDiamond(widget, size * sqrt(2) / 2, color)
+		end
+		return
 	else
-		texture = Flash({ kind = "highlight", duration = HIGHLIGHT_TIME }, RING_COLOR)
+		texture = Flash({ kind = "highlight", duration = HIGHLIGHT_TIME }, color or RING_COLOR)
 		size = size * HIGHLIGHT_SIZE
 	end
 	texture:SetSize(size, size)
@@ -256,6 +318,12 @@ function Effects:Streak(lane, from, to, color)
 	Track({ kind = "streak", lane = lane, from = from, to = to, duration = STREAK_TIME }, texture, freeStreaks)
 end
 
+-- A melee swing just landed at `t`: the renderer's next rebuild of the lane
+-- flashes the landed badge (and clears `lane.landFlash`).
+function Effects:Land(lane, t)
+	lane.landFlash = t
+end
+
 -- A corrected prediction: the streak from the old instant to the new one,
 -- and the pop at the new one unless the pop budget is spent (pop == false).
 -- With the pop, the lane's next diamond lights in the same color: the
@@ -289,6 +357,11 @@ local function Release(effect)
 	local texture = effect.texture
 	texture:Hide()
 	texture:ClearAllPoints()
+	if texture.maskOn then
+		texture.maskOn = nil
+		texture:RemoveMaskTexture(texture.turnMask)
+		texture.turnMask:ClearAllPoints()
+	end
 	local pool = effect.pool
 	pool[#pool + 1] = texture
 end
@@ -305,12 +378,18 @@ local KINDS = {
 				texture:SetAlpha(1)
 			end
 			effect.frame = frame
-			Addon.Skin.RegionCell(texture, effect.region, frame % FLASH_COLUMNS, floor(frame / FLASH_COLUMNS), FLASH_COLUMNS, FLASH_ROWS)
+			local cell = effect.turned and Addon.Skin.RegionCellTurned or Addon.Skin.RegionCell
+			cell(texture, effect.region, frame % FLASH_COLUMNS, floor(frame / FLASH_COLUMNS), FLASH_COLUMNS, FLASH_ROWS)
 		end
 		if effect.ring then
 			local lane = effect.lane
 			PlaceAtRing(texture, lane, lane.parkIndex and lane.readyOrder and Layout.parkSize or Layout.iconSize)
 		end
+	end },
+	badgeflash = { place = function(effect, texture, progress)
+		local side = effect.size * (1 + BADGE_FLASH_GROWTH * progress)
+		texture:SetSize(side, side)
+		texture:SetAlpha(HIGHLIGHT_PEAK * (1 - abs(2 * progress - 1)))
 	end },
 	halo = { place = function(effect, texture, _, eased)
 		local side = effect.side * (DIAMOND_HALO + DIAMOND_HALO_GROWTH * eased)

@@ -43,6 +43,7 @@ local PERF_SAMPLES = 300
 -- A mark flashes as it comes within 1.5 s of the now line (one GCD: "lands
 -- within your next GCD"; Blizzard's highlight time). A constant, not a setting.
 local URGENT_LEAD = 1.5
+local LAND_MATCH = 0.05 -- seconds: the landed badge a landing's flash belongs to
 -- A prediction this close to the now line when it went was used up (it
 -- landed), not withdrawn; a new one within this of an old one is the same.
 -- A withdrawn one fades out over Blizzard's CancelAnimation time.
@@ -238,21 +239,27 @@ local function ConfigureMark(mark, desc)
 		mark.desaturated = desaturated
 		mark.icon:SetDesaturated(desaturated)
 	end
-	local tintKey = desc.tint or "none"
-	if mark.tintKey ~= tintKey then
-		mark.tintKey = tintKey
-		local tint = TINTS[tintKey]
+	-- `brightness` dims the icon without making the mark see-through (a
+	-- framed badge sits over the bar's border).
+	local tintName, brightness = desc.tint, desc.brightness or 1
+	if mark.tintName ~= tintName or mark.brightness ~= brightness then
+		mark.tintName, mark.brightness = tintName, brightness
+		local tint = TINTS[tintName or "none"]
 		if tint then
-			mark.icon:SetVertexColor(tint[1], tint[2], tint[3])
+			mark.icon:SetVertexColor(tint[1] * brightness, tint[2] * brightness, tint[3] * brightness)
 		else
-			mark.icon:SetVertexColor(1, 1, 1)
+			mark.icon:SetVertexColor(brightness, brightness, brightness)
 		end
 	end
 	-- The base alpha, rewritten on every rebuild: a fading mark writes its alpha
 	-- every frame, and what a fade left must not outlive the mark's use.
 	mark.alphaValue, mark.fadeAlpha = desc.alpha or 1, nil
 	mark:SetAlpha(mark.alphaValue)
+	-- A framed icon (the action bar's frame art and mask) draws its own rim; a
+	-- badge's stem crosses the bar from it.
+	Skin.SetIconFrame(mark.art, desc.frame, desc.turned)
 	Skin.SetBorder(mark.art, BORDER_COLORS[desc.border])
+	Skin.SetStem(mark, desc.stemColor, desc.across or 0, desc.pipHalf)
 end
 
 local function ConfigureTick(tick, desc)
@@ -855,6 +862,26 @@ end
 
 -- `withdraw`: fade out the predictions this rebuild removed and fade in the
 -- ones it added (not on a layout pass, which rebuilds everything anew).
+-- Lights the first badge in `marks` that `match(desc, arg)` accepts.
+local function IsLanding(desc, t)
+	return not desc.predicted and desc.t and abs(desc.t - t) < LAND_MATCH
+end
+
+local function IsNextSwing(desc)
+	return desc.predicted and not desc.chain and not desc.atNow
+end
+
+local function HighlightBadge(marks, match, color, arg)
+	for i = 1, marks.cursor do
+		local mark = marks.used[i]
+		local desc = mark.desc
+		if desc.turned and match(desc, arg) then
+			Effects:Highlight(mark, desc, color)
+			return
+		end
+	end
+end
+
 local function RebuildLane(lane, now, withdraw)
 	local pools = lane.pools
 	local marks, diamonds = pools.marks, pools.diamonds
@@ -874,6 +901,12 @@ local function RebuildLane(lane, now, withdraw)
 			Build(lane, desc)
 		end
 	end
+	-- A swing just landed (Effects:Land: its instant): its badge flashes.
+	local landed = lane.landFlash
+	if landed then
+		lane.landFlash = nil
+		HighlightBadge(marks, IsLanding, nil, landed)
+	end
 	-- A correction (Effects:Correct): the lane's next diamond, rebuilt at its
 	-- new instant, lights in the correction's color.
 	local flashColor = lane.flashColor
@@ -886,6 +919,8 @@ local function RebuildLane(lane, now, withdraw)
 				break
 			end
 		end
+		-- The same for a melee hand's badge, its next swing (a mark, not a diamond).
+		HighlightBadge(marks, IsNextSwing, flashColor)
 	end
 	-- Jittered, so the lanes' safety passes do not all land on one frame.
 	lane.nextRebuild = now + SAFETY_REBUILD * (0.75 + 0.5 * random())

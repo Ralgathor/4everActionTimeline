@@ -230,6 +230,11 @@ for i, hand in ipairs(HANDS) do
 	Layout:DeclareLane(lanes[hand])
 end
 
+-- Whether both melee hands have a lane: a dual-wielder.
+function Hands.IsDualWielding()
+	return (lanes.mainhand.registered and lanes.offhand.registered) and true or false
+end
+
 -- Re-checks the hand lanes' presence and refreshes their icons; a lane only
 -- rebuilds when its icon changed (UNIT_INVENTORY_CHANGED fires on every bag
 -- change).
@@ -318,6 +323,9 @@ function Hands:OnStart(hand, speed, expiration, isUpdate)
 			end
 			Ingest(entry)
 			state.lastLanding, state.lastLandingAt = entry, now
+			if not windup then
+				Effects:Land(lane, landing) -- the badge flashes
+			end
 			if reason == "early" then
 				Effects:Correct(lane, previous, landing, Effects.TEAL)
 			end

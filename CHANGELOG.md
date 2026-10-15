@@ -13,17 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cast bar, with what you just did on one side of a now line and what is
   coming on the other. Things that happened are in full color; predictions
   are faded, so you can tell fact from forecast at a glance.
-- Swings: your main hand, off hand and ranged weapon as diamonds on the
-  bar's edges - the next swing, the one after it, and past swings fading
-  away. A paused swing (while you cast) shows a pause sign; auto-attack
-  off shows a dim diamond on the now line. A queued ability such as Heroic
+- Swings: your main hand and off hand as badges on the bar's edges - the
+  equipped weapon's icon in the action bar button's frame, turned into a
+  diamond - the next swing, the ones after it (smaller, dim) and past
+  swings fading away. The next swing has a tick across the bar, Blizzard's
+  swing timer pip, tinted to match the frame: the full bar's height, or
+  half of it each when dual-wielding so the two never cross. Auto-attack
+  off parks a dim badge beside the ready spells on the now line. Your
+  ranged weapon stays a diamond (hollow). A queued ability such as Heroic
   Strike shows its icon on the bar at the swing it will ride.
 - Auto Shot: the shot's windup, when you must stand still, is drawn as a
   teal cast ending at the Auto Shot icon. Moving holds the shot back: its
   icon turns amber and an amber line shows the delay.
 - Swing timing feedback: a swing that lands early, a parry speed-up, or a
   swing reset by a cast or a weapon swap flashes and moves the next swing
-  at once, so you see the change. Respects the game's screen shake setting.
+  at once, so you see the change. A landing flashes the landed badge at the
+  swing, in the badge's own turned shape. Respects the game's screen shake
+  setting.
 - Casts and channels fill the bar in gold and green, the spell's icon at
   the end. An interrupted or failed cast keeps a red border; pushback
   moves the end.

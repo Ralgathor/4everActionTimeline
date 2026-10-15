@@ -91,6 +91,7 @@ function mainHand:Advance(now)
 		local queued = k % 2 == 0
 		Ingest({ kind = "swing", lane = self.key, time = Landing(k), icon = queued and SpellIcon(QUEUED_ICON_SPELL) or weaponIcon, onSwing = queued or nil })
 		self.nextLanding = k + 1
+		Effects:Land(self, Landing(k)) -- the badge flashes
 	end
 end
 
